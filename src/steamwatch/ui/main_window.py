@@ -84,8 +84,8 @@ class MainWindow:
         """创建窗口"""
         self._root = tk.Tk()
         self._root.title("SteamWatch")
-        self._root.geometry("900x650")
-        self._root.minsize(700, 500)
+        self._root.geometry("900x750")
+        self._root.minsize(800, 600)
 
         self._root.protocol("WM_DELETE_WINDOW", self.hide)
 
@@ -504,10 +504,7 @@ class MainWindow:
 
         # 游戏限额管理
         game_limit_frame = ttk.LabelFrame(frame, text="游戏限额管理")
-        game_limit_frame.pack(fill=tk.X, padx=10, pady=10)
-
-        tips_frame = ttk.Frame(game_limit_frame)
-        tips_frame.pack(fill=tk.X, padx=10, pady=10)
+        game_limit_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         tips = [
             "• 双击游戏行，可设置该游戏的每日限额",
@@ -516,8 +513,8 @@ class MainWindow:
         ]
 
         for tip in tips:
-            ttk.Label(tips_frame, text=tip, foreground="#555555").pack(
-                anchor=tk.W, pady=2
+            ttk.Label(game_limit_frame, text=tip, foreground="#555555").pack(
+                anchor=tk.W, padx=15, pady=3
             )
 
         return frame
