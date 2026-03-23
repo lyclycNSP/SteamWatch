@@ -100,16 +100,20 @@ class MainWindow:
         icon_ico = os.path.join("assets", "icon.ico")
         icon_png = os.path.join("assets", "icon.png")
 
+        # 先设置iconbitmap（窗口左上角）
         if os.path.exists(icon_ico):
             try:
                 self._root.iconbitmap(icon_ico)
             except Exception as e:
                 print(f"加载ICO图标失败: {e}")
-        elif os.path.exists(icon_png):
+
+        # 再设置iconphoto（任务栏）
+        if os.path.exists(icon_png):
             try:
                 from PIL import Image, ImageTk
 
                 pil_image = Image.open(icon_png)
+                pil_image = pil_image.resize((256, 256), Image.Resampling.LANCZOS)
                 icon_image = ImageTk.PhotoImage(pil_image)
                 self._root.iconphoto(True, icon_image)
                 self._icon_image = icon_image
