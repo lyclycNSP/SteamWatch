@@ -434,17 +434,6 @@ class MainWindow:
         """创建设置标签页"""
         frame = ttk.Frame(self._notebook)
 
-        # 启动设置
-        startup_frame = ttk.LabelFrame(frame, text="启动设置")
-        startup_frame.pack(fill=tk.X, padx=10, pady=10)
-
-        self._start_minimized_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            startup_frame,
-            text="启动时最小化到托盘（不显示主窗口）",
-            variable=self._start_minimized_var,
-        ).pack(anchor=tk.W, padx=10, pady=5)
-
         # 全局设置
         global_frame = ttk.LabelFrame(frame, text="全局设置")
         global_frame.pack(fill=tk.X, padx=10, pady=10)
@@ -500,14 +489,11 @@ class MainWindow:
         dnd_frame = ttk.LabelFrame(frame, text="⚠️ 重要提示：Windows勿扰模式")
         dnd_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        dnd_info = """全屏游戏时，Windows默认会启用勿扰模式，导致无法收到提醒通知。
+        dnd_info = """全屏游戏时，Windows默认启用勿扰模式，可能导致无法收到提醒通知。
 
-请按以下步骤关闭此功能：
-  1. 按 Win + i 打开设置
-  2. 点击左侧"系统" → 右侧"通知"
-  3. 展开"自动打开勿扰模式"
-  4. 取消勾选"玩游戏时"和"全屏使用应用时"
-  5. 确保顶部"勿扰模式"处于关闭状态"""
+关闭方法：设置 → 系统 → 通知 → 自动打开勿扰模式 → 取消勾选"玩游戏时"
+
+详细步骤请查看 README.md 文档。"""
 
         dnd_label = ttk.Label(
             dnd_frame, text=dnd_info, justify=tk.LEFT, foreground="#c0392b"
