@@ -104,6 +104,9 @@ class TrayApp:
         self._root.withdraw()
         self._root.protocol("WM_DELETE_WINDOW", self._on_root_close)
 
+        # 默认显示主窗口
+        self._show_main_window()
+
         try:
             self._root.mainloop()
         finally:
