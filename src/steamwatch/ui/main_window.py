@@ -84,7 +84,7 @@ class MainWindow:
         """创建窗口"""
         self._root = tk.Tk()
         self._root.title("SteamWatch")
-        self._root.geometry("900x750")
+        self._root.geometry("900x700")
         self._root.minsize(800, 600)
 
         self._root.protocol("WM_DELETE_WINDOW", self.hide)

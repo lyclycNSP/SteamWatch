@@ -151,14 +151,18 @@ class TrayApp:
             playtime_seconds = self._monitor.get_game_playtime(app_id)
             session_minutes = int(playtime_seconds / 60)
 
+            # 获取今日已记录时长
+            today_minutes = self._time_tracker.get_game_time(real_app_id)
+            total_minutes = today_minutes + session_minutes
+
             limit = self._time_tracker.get_game_limit(real_app_id)
             global_limit = self._time_tracker.get_global_limit()
 
             # 检查单游戏限额
             if limit and limit.daily_limit > 0:
-                progress = session_minutes / limit.daily_limit
+                progress = total_minutes / limit.daily_limit
                 print(
-                    f"[SteamWatch] {game_name}: {session_minutes}/{limit.daily_limit}分钟 ({int(progress * 100)}%)"
+                    f"[SteamWatch] {game_name}: {total_minutes}/{limit.daily_limit}分钟 ({int(progress * 100)}%)"
                 )
                 self._reminder_manager.check_and_notify(
                     real_app_id, game_name, progress, current_time
