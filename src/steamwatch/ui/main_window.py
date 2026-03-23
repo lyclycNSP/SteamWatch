@@ -89,17 +89,24 @@ class MainWindow:
         self._root.minsize(800, 600)
 
         # 设置窗口图标
-        icon_path = os.path.join("assets", "icon.png")
-        if os.path.exists(icon_path):
+        icon_ico = os.path.join("assets", "icon.ico")
+        icon_png = os.path.join("assets", "icon.png")
+
+        if os.path.exists(icon_ico):
+            try:
+                self._root.iconbitmap(icon_ico)
+            except Exception as e:
+                print(f"加载ICO图标失败: {e}")
+        elif os.path.exists(icon_png):
             try:
                 from PIL import Image, ImageTk
 
-                pil_image = Image.open(icon_path)
+                pil_image = Image.open(icon_png)
                 icon_image = ImageTk.PhotoImage(pil_image)
                 self._root.iconphoto(True, icon_image)
-                self._icon_image = icon_image  # 保持引用
+                self._icon_image = icon_image
             except Exception as e:
-                print(f"加载图标失败: {e}")
+                print(f"加载PNG图标失败: {e}")
 
         self._root.protocol("WM_DELETE_WINDOW", self.hide)
 
