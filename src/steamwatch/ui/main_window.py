@@ -278,10 +278,12 @@ class MainWindow:
         )
 
         current_limit = self._time_tracker.get_game_limit(game.app_id)
+        print(f"[DEBUG] game.app_id={game.app_id}, current_limit={current_limit}")
         if current_limit:
             limit_value = str(current_limit.daily_limit)
         else:
             limit_value = ""
+        print(f"[DEBUG] limit_value='{limit_value}'")
         limit_var = tk.StringVar(value=limit_value)
 
         limit_entry = ttk.Entry(
@@ -297,12 +299,19 @@ class MainWindow:
         def save_limit():
             try:
                 value = limit_var.get().strip()
+                print(f"[DEBUG] save_limit: value='{value}'")
                 limit = int(value) if value else 0
+                print(f"[DEBUG] save_limit: limit={limit}, app_id={game.app_id}")
 
                 if limit < 0:
                     raise ValueError("限额不能为负数")
 
                 self._time_tracker.set_game_limit(game.app_id, limit, game.name)
+
+                # 验证
+                saved = self._time_tracker.get_game_limit(game.app_id)
+                print(f"[DEBUG] saved: {saved}")
+
                 messagebox.showinfo(
                     "成功", f"已设置 {game.name} 的每日限额为 {limit} 分钟"
                 )
