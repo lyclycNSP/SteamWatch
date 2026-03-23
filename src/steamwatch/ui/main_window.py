@@ -92,7 +92,10 @@ class MainWindow:
         icon_path = os.path.join("assets", "icon.png")
         if os.path.exists(icon_path):
             try:
-                icon_image = tk.PhotoImage(file=icon_path)
+                from PIL import Image, ImageTk
+
+                pil_image = Image.open(icon_path)
+                icon_image = ImageTk.PhotoImage(pil_image)
                 self._root.iconphoto(True, icon_image)
                 self._icon_image = icon_image  # 保持引用
             except Exception as e:
