@@ -256,16 +256,16 @@ class MainWindow:
 
         dialog = tk.Toplevel(self._root)
         dialog.title(f"设置限额 - {game.name}")
-        dialog.geometry("400x200")
+        dialog.geometry("500x250")
         dialog.resizable(False, False)
         dialog.transient(self._root)
         dialog.grab_set()
 
-        frame = ttk.Frame(dialog, padding=20)
+        frame = ttk.Frame(dialog, padding=25)
         frame.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(frame, text=f"游戏：{game.name}", font=("Arial", 11, "bold")).pack(
-            anchor=tk.W
+        ttk.Label(frame, text=f"游戏：{game.name}", font=("Arial", 12, "bold")).pack(
+            anchor=tk.W, pady=(0, 10)
         )
 
         ttk.Label(frame, text="").pack()
@@ -273,25 +273,36 @@ class MainWindow:
         limit_frame = ttk.Frame(frame)
         limit_frame.pack(fill=tk.X, pady=10)
 
-        ttk.Label(limit_frame, text="每日限额（分钟）：").pack(side=tk.LEFT)
+        ttk.Label(limit_frame, text="每日限额（分钟）：", font=("Arial", 10)).pack(
+            side=tk.LEFT
+        )
 
         current_limit = self._time_tracker.get_game_limit(game.app_id)
-        limit_var = tk.StringVar(
-            value=str(current_limit.daily_limit) if current_limit else "0"
+        limit_value = (
+            str(current_limit.daily_limit)
+            if current_limit and current_limit.daily_limit > 0
+            else ""
         )
+        limit_var = tk.StringVar(value=limit_value)
 
-        limit_entry = ttk.Entry(limit_frame, textvariable=limit_var, width=10)
+        limit_entry = ttk.Entry(
+            limit_frame, textvariable=limit_var, width=15, font=("Arial", 11)
+        )
         limit_entry.pack(side=tk.LEFT, padx=10)
+        limit_entry.focus()
 
-        ttk.Label(frame, text="提示：输入0表示不限制该游戏", foreground="gray").pack(
-            anchor=tk.W
-        )
+        ttk.Label(
+            frame, text="提示：输入0或不填表示不限制该游戏", foreground="gray"
+        ).pack(anchor=tk.W, pady=(5, 0))
 
         def save_limit():
             try:
-                limit = int(limit_var.get())
+                value = limit_var.get().strip()
+                limit = int(value) if value else 0
+
                 if limit < 0:
                     raise ValueError("限额不能为负数")
+
                 self._time_tracker.set_game_limit(game.app_id, limit, game.name)
                 messagebox.showinfo(
                     "成功", f"已设置 {game.name} 的每日限额为 {limit} 分钟"
@@ -301,15 +312,23 @@ class MainWindow:
             except ValueError as e:
                 messagebox.showerror("错误", f"请输入有效的数字：{e}")
 
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(fill=tk.X, pady=20)
+        def on_cancel():
+            dialog.destroy()
 
-        ttk.Button(btn_frame, text="保存", command=save_limit).pack(
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill=tk.X, pady=25)
+
+        ttk.Button(btn_frame, text="保存", command=save_limit, width=12).pack(
             side=tk.RIGHT, padx=5
         )
-        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(
+        ttk.Button(btn_frame, text="取消", command=on_cancel, width=12).pack(
             side=tk.RIGHT, padx=5
         )
+
+        # 绑定回车键保存
+        limit_entry.bind("<Return>", lambda e: save_limit())
+        # 绑定ESC键取消
+        dialog.bind("<Escape>", lambda e: on_cancel())
 
     def _remove_game_limit(self) -> None:
         """取消游戏限额"""
