@@ -2,6 +2,7 @@
 系统托盘模块
 """
 
+import os
 import threading
 import time
 from typing import Optional
@@ -57,11 +58,7 @@ class TrayApp:
 
     def _create_icon_image(self) -> Image.Image:
         """加载托盘图标"""
-        import os
-
-        icon_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "assets", "icon.png"
-        )
+        icon_path = os.path.join("assets", "icon.png")
 
         if os.path.exists(icon_path):
             image = Image.open(icon_path)

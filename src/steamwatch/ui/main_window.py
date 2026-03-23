@@ -2,6 +2,7 @@
 主窗口模块
 """
 
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from typing import Optional, List
@@ -88,11 +89,7 @@ class MainWindow:
         self._root.minsize(800, 600)
 
         # 设置窗口图标
-        import os
-
-        icon_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "assets", "icon.png"
-        )
+        icon_path = os.path.join("assets", "icon.png")
         if os.path.exists(icon_path):
             try:
                 icon_image = tk.PhotoImage(file=icon_path)
