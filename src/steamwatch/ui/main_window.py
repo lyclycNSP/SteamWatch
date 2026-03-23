@@ -298,12 +298,19 @@ class MainWindow:
         def save_limit():
             try:
                 value = limit_var.get().strip()
+                print(f"[DEBUG] 输入值: '{value}'")
+
                 limit = int(value) if value else 0
+                print(f"[DEBUG] 转换后: {limit}")
 
                 if limit < 0:
                     raise ValueError("限额不能为负数")
 
                 self._time_tracker.set_game_limit(game.app_id, limit, game.name)
+
+                saved_limit = self._time_tracker.get_game_limit(game.app_id)
+                print(f"[DEBUG] 保存后读取: {saved_limit}")
+
                 messagebox.showinfo(
                     "成功", f"已设置 {game.name} 的每日限额为 {limit} 分钟"
                 )

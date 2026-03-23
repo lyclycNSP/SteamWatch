@@ -139,29 +139,43 @@ class TrayApp:
         current_time = time.time()
 
         for app_id in running_games:
+            # 获取进程名用于匹配真实AppID
+            proc_info = self._monitor._game_processes.get(app_id)
+            process_name = proc_info.name if proc_info else ""
+
+            # 转换为真实AppID
+            real_app_id = self._find_real_app_id(app_id, process_name)
+
             # 获取游戏信息
             game_info = (
-                self._cache_reader.get_game_info(app_id) if self._cache_reader else None
+                self._cache_reader.get_game_info(real_app_id)
+                if self._cache_reader
+                else None
             )
-            game_name = game_info.name if game_info else f"App {app_id}"
+            game_name = (
+                game_info.name if game_info else process_name or f"App {real_app_id}"
+            )
 
             # 获取本次会话时长（分钟）
             playtime_seconds = self._monitor.get_game_playtime(app_id)
             session_minutes = int(playtime_seconds / 60)
 
             # 获取今日已记录时长
-            today_minutes = self._time_tracker.get_game_time(app_id)
+            today_minutes = self._time_tracker.get_game_time(real_app_id)
             total_today = today_minutes + session_minutes
 
             # 检查限额
-            limit = self._time_tracker.get_game_limit(app_id)
+            limit = self._time_tracker.get_game_limit(real_app_id)
             global_limit = self._time_tracker.get_global_limit()
 
             # 计算进度和发送提醒
             if limit and limit.daily_limit > 0:
                 progress = total_today / limit.daily_limit
+                print(
+                    f"[SteamWatch] {game_name}: {total_today}/{limit.daily_limit}分钟 ({int(progress * 100)}%)"
+                )
                 self._reminder_manager.check_and_notify(
-                    app_id, game_name, progress, current_time
+                    real_app_id, game_name, progress, current_time
                 )
 
             # 检查全局限额
@@ -174,9 +188,9 @@ class TrayApp:
                     0, "全局时长", global_progress, current_time
                 )
 
-            # 每分钟更新一次今日时长（实时显示）
+            # 更新今日时长（实时显示）
             if session_minutes > 0:
-                self._time_tracker.set_game_time(app_id, total_today)
+                self._time_tracker.set_game_time(real_app_id, total_today)
 
         # 更新托盘提示
         if running_games:
@@ -301,6 +315,10 @@ class TrayApp:
         for game in self._cache_reader.get_all_games():
             game_lower = game.name.lower().replace(":", "").replace("-", "")
             if process_lower in game_lower or game_lower in process_lower:
+                if detected_app_id != game.app_id:
+                    print(
+                        f"[SteamWatch] AppID映射: {detected_app_id} -> {game.app_id} ({game.name})"
+                    )
                 return game.app_id
 
         return detected_app_id
