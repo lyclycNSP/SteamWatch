@@ -12,6 +12,7 @@ import csv
 from steamwatch.core.steam_monitor import SteamMonitor
 from steamwatch.core.cache_reader import CacheReader, GameInfo
 from steamwatch.core.time_tracker import TimeTracker, GameTimeLimit, DailyRecord
+from steamwatch.core.reminder_manager import ReminderManager
 
 try:
     import matplotlib
@@ -21,7 +22,6 @@ try:
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
     import matplotlib.font_manager as fm
 
-    # 设置中文字体
     CHINESE_FONT = None
     for font_name in ["SimHei", "Microsoft YaHei", "SimSun", "KaiTi"]:
         try:
@@ -51,20 +51,14 @@ class MainWindow:
         cache_reader: CacheReader,
         monitor: Optional[SteamMonitor] = None,
     ):
-        """
-        初始化主窗口
-
-        Args:
-            time_tracker: 时长追踪器
-            cache_reader: 缓存读取器
-            monitor: Steam监控器
-        """
         self._time_tracker = time_tracker
         self._cache_reader = cache_reader
         self._monitor = monitor
 
         self._root: Optional[tk.Tk] = None
         self._notebook: Optional[ttk.Notebook] = None
+        self._games_tree: Optional[ttk.Treeview] = None
+        self._games_data: dict = {}
 
     def show(self) -> None:
         """显示窗口"""
@@ -84,14 +78,14 @@ class MainWindow:
     def show_settings_tab(self) -> None:
         """切换到设置标签页"""
         if self._notebook:
-            self._notebook.select(1)
+            self._notebook.select(2)
 
     def _create_window(self) -> None:
         """创建窗口"""
         self._root = tk.Tk()
         self._root.title("SteamWatch")
-        self._root.geometry("800x600")
-        self._root.minsize(600, 400)
+        self._root.geometry("900x650")
+        self._root.minsize(700, 500)
 
         self._root.protocol("WM_DELETE_WINDOW", self.hide)
 
@@ -136,32 +130,39 @@ class MainWindow:
         frame = ttk.Frame(self._notebook)
 
         columns = ("name", "app_id", "today_time", "limit", "status")
-        tree = ttk.Treeview(frame, columns=columns, show="headings", height=20)
+        self._games_tree = ttk.Treeview(frame, columns=columns, show="headings", height=20)
 
-        tree.heading("name", text="游戏名称")
-        tree.heading("app_id", text="AppID")
-        tree.heading("today_time", text="今日时长")
-        tree.heading("limit", text="限制")
-        tree.heading("status", text="状态")
+        self._games_tree.heading("name", text="游戏名称")
+        self._games_tree.heading("app_id", text="AppID")
+        self._games_tree.heading("today_time", text="今日时长")
+        self._games_tree.heading("limit", text="限制")
+        self._games_tree.heading("status", text="状态")
 
-        tree.column("name", width=300)
-        tree.column("app_id", width=100)
-        tree.column("today_time", width=100)
-        tree.column("limit", width=100)
-        tree.column("status", width=100)
+        self._games_tree.column("name", width=300)
+        self._games_tree.column("app_id", width=100)
+        self._games_tree.column("today_time", width=100)
+        self._games_tree.column("limit", width=100)
+        self._games_tree.column("status", width=100)
 
-        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=tree.yview)
-        tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self._games_tree.yview)
+        self._games_tree.configure(yscrollcommand=scrollbar.set)
 
-        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._games_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self._populate_games_tree(tree)
+        self._populate_games_tree()
+
+        self._games_tree.bind("<Double-1>", self._on_game_double_click)
+        self._games_tree.bind("<Button-3>", self._show_game_context_menu)
 
         return frame
 
-    def _populate_games_tree(self, tree: ttk.Treeview) -> None:
+    def _populate_games_tree(self) -> None:
         """填充游戏列表"""
+        for item in self._games_tree.get_children():
+            self._games_tree.delete(item)
+        self._games_data.clear()
+
         games = self._cache_reader.get_all_games()
 
         for game in games:
@@ -176,18 +177,111 @@ class MainWindow:
 
             status = "正常"
             if limit and limit.daily_limit > 0:
-                if today_time >= limit.daily_limit:
+                progress = today_time / limit.daily_limit
+                if progress >= 1.0:
                     status = "已超限"
-                elif today_time >= limit.daily_limit * 0.8:
+                elif progress >= 0.95:
                     status = "即将超限"
+                elif progress >= 0.85:
+                    status = "接近限制"
 
             today_str = f"{today_time}分钟"
 
-            tree.insert(
+            item_id = self._games_tree.insert(
                 "",
                 tk.END,
                 values=(game.name, game.app_id, today_str, limit_str, status),
             )
+            self._games_data[item_id] = game
+
+    def _on_game_double_click(self, event) -> None:
+        """双击游戏设置限额"""
+        self._show_limit_dialog()
+
+    def _show_game_context_menu(self, event) -> None:
+        """显示右键菜单"""
+        item = self._games_tree.identify_row(event.y)
+        if item:
+            self._games_tree.selection_set(item)
+            menu = tk.Menu(self._root, tearoff=0)
+            menu.add_command(label="设置限额", command=self._show_limit_dialog)
+            menu.add_command(label="取消限额", command=self._remove_game_limit)
+            menu.add_separator()
+            menu.add_command(label="刷新", command=self._refresh_games)
+            menu.post(event.x_root, event.y_root)
+
+    def _show_limit_dialog(self) -> None:
+        """显示限额设置对话框"""
+        selection = self._games_tree.selection()
+        if not selection:
+            messagebox.showwarning("提示", "请先选择一个游戏")
+            return
+
+        item = selection[0]
+        game = self._games_data.get(item)
+        if not game:
+            return
+
+        dialog = tk.Toplevel(self._root)
+        dialog.title(f"设置限额 - {game.name}")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(self._root)
+        dialog.grab_set()
+
+        frame = ttk.Frame(dialog, padding=20)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(frame, text=f"游戏：{game.name}", font=("Arial", 11, "bold")).pack(anchor=tk.W)
+
+        ttk.Label(frame, text="").pack()
+
+        limit_frame = ttk.Frame(frame)
+        limit_frame.pack(fill=tk.X, pady=10)
+
+        ttk.Label(limit_frame, text="每日限额（分钟）：").pack(side=tk.LEFT)
+
+        current_limit = self._time_tracker.get_game_limit(game.app_id)
+        limit_var = tk.StringVar(value=str(current_limit.daily_limit) if current_limit else "0")
+
+        limit_entry = ttk.Entry(limit_frame, textvariable=limit_var, width=10)
+        limit_entry.pack(side=tk.LEFT, padx=10)
+
+        ttk.Label(frame, text="提示：输入0表示不限制该游戏", foreground="gray").pack(anchor=tk.W)
+
+        def save_limit():
+            try:
+                limit = int(limit_var.get())
+                if limit < 0:
+                    raise ValueError("限额不能为负数")
+                self._time_tracker.set_game_limit(game.app_id, limit, game.name)
+                messagebox.showinfo("成功", f"已设置 {game.name} 的每日限额为 {limit} 分钟")
+                self._populate_games_tree()
+                dialog.destroy()
+            except ValueError as e:
+                messagebox.showerror("错误", f"请输入有效的数字：{e}")
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill=tk.X, pady=20)
+
+        ttk.Button(btn_frame, text="保存", command=save_limit).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
+
+    def _remove_game_limit(self) -> None:
+        """取消游戏限额"""
+        selection = self._games_tree.selection()
+        if not selection:
+            return
+
+        item = selection[0]
+        game = self._games_data.get(item)
+        if not game:
+            return
+
+        if messagebox.askyesno("确认", f"确定要取消 {game.name} 的限额设置吗？"):
+            self._time_tracker.remove_game_limit(game.app_id)
+            self._populate_games_tree()
+            messagebox.showinfo("成功", f"已取消 {game.name} 的限额")
 
     def _create_stats_tab(self) -> ttk.Frame:
         """创建统计标签页"""
@@ -306,17 +400,54 @@ class MainWindow:
         notify_frame = ttk.LabelFrame(frame, text="提醒设置")
         notify_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        ttk.Label(notify_frame, text="提醒阈值（%）：").grid(
-            row=0, column=0, padx=5, pady=5, sticky=tk.W
+        ttk.Label(
+            notify_frame,
+            text="渐强提醒机制说明：",
+            font=("Arial", 10, "bold")
+        ).grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky=tk.W)
+
+        reminder_info = """
+当游戏时长接近限额时，系统会按以下进度发送渐强提醒：
+
+  • 70% 时：首次提醒（"已游玩70%，请注意时间"）
+  • 85% 时：二次提醒（"已游玩85%，即将达到限额"）
+  • 95% 时：最终提醒（"已游玩95%，马上超限！"）
+  • 100% 时：超限提醒（"已超过限额！请休息一下"）
+
+提醒间隔会逐渐缩短，确保您注意到时长限制。
+        """
+
+        info_label = ttk.Label(
+            notify_frame,
+            text=reminder_info,
+            justify=tk.LEFT,
+            foreground="#333333"
         )
-        threshold_var = tk.StringVar(value="80")
-        ttk.Entry(notify_frame, textvariable=threshold_var, width=10).grid(
-            row=0, column=1, padx=5, pady=5
+        info_label.grid(row=1, column=0, columnspan=3, padx=10, pady=5, sticky=tk.W)
+
+        ttk.Separator(notify_frame, orient=tk.HORIZONTAL).grid(
+            row=2, column=0, columnspan=3, sticky=tk.EW, padx=5, pady=10
         )
 
-        ttk.Label(notify_frame, text="渐强提醒：启用后会在接近限制时逐步加强提醒").grid(
-            row=1, column=0, columnspan=3, padx=5, pady=5, sticky=tk.W
-        )
+        game_limit_frame = ttk.LabelFrame(frame, text="游戏限额管理")
+        game_limit_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        ttk.Label(
+            game_limit_frame,
+            text="在"游戏列表"标签页中：",
+            font=("Arial", 10, "bold")
+        ).pack(anchor=tk.W, padx=10, pady=5)
+
+        tips = [
+            "• 双击游戏行，可设置该游戏的每日限额",
+            "• 右键点击游戏行，可设置或取消限额",
+            "• 单个游戏限额与全局限额独立生效",
+        ]
+
+        for tip in tips:
+            ttk.Label(game_limit_frame, text=tip, foreground="#555555").pack(
+                anchor=tk.W, padx=20, pady=2
+            )
 
         return frame
 
@@ -325,12 +456,13 @@ class MainWindow:
         status_frame = ttk.Frame(self._root)
         status_frame.pack(fill=tk.X, side=tk.BOTTOM)
 
-        status_label = ttk.Label(status_frame, text="就绪")
+        status_label = ttk.Label(status_frame, text="提示：双击游戏设置限额 | 右键查看更多选项")
         status_label.pack(side=tk.LEFT, padx=5)
 
     def _refresh_games(self) -> None:
         """刷新游戏列表"""
         self._cache_reader.refresh()
+        self._populate_games_tree()
         messagebox.showinfo(
             "刷新完成", f"已加载 {len(self._cache_reader.get_all_games())} 个游戏"
         )

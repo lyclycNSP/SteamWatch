@@ -3,7 +3,7 @@
 """
 
 import threading
-from typing import Optional, Callable
+from typing import Optional
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageDraw
@@ -40,6 +40,7 @@ class TrayApp:
         self._main_window: Optional[MainWindow] = None
         self._root: Optional[tk.Tk] = None
         self._running = False
+        self._icon_thread: Optional[threading.Thread] = None
 
         self._setup_components()
         self._create_icon()
@@ -77,18 +78,18 @@ class TrayApp:
         image = self._create_icon_image()
 
         menu = Menu(
-            MenuItem("打开主窗口", self._show_main_window, default=True),
+            MenuItem("打开主窗口", self._show_main_window_callback, default=True),
             Menu.SEPARATOR,
-            MenuItem("设置", self._show_settings),
-            MenuItem("关于", self._show_about),
+            MenuItem("设置", self._show_settings_callback),
+            MenuItem("关于", self._show_about_callback),
             Menu.SEPARATOR,
-            MenuItem("退出", self._quit),
+            MenuItem("退出", self._quit_callback),
         )
 
         self._icon = pystray.Icon("SteamWatch", image, "SteamWatch", menu)
 
     def run(self) -> None:
-        """运行应用"""
+        """运行应用 - tkinter在主线程"""
         if self._icon is None:
             raise RuntimeError("Icon not created")
 
@@ -96,21 +97,59 @@ class TrayApp:
         self._cache_reader.refresh()
         self._monitor.start()
 
-        self._icon.run()
+        # 在后台线程运行托盘图标
+        self._icon_thread = threading.Thread(target=self._run_icon, daemon=True)
+        self._icon_thread.start()
 
-    def stop(self) -> None:
-        """停止应用"""
+        # 创建隐藏的tkinter根窗口用于事件循环
+        self._root = tk.Tk()
+        self._root.withdraw()
+        self._root.protocol("WM_DELETE_WINDOW", self._on_root_close)
+
+        # 主事件循环
+        try:
+            self._root.mainloop()
+        finally:
+            self._cleanup()
+
+    def _run_icon(self) -> None:
+        """在后台线程运行托盘图标"""
+        if self._icon:
+            self._icon.run()
+
+    def _on_root_close(self) -> None:
+        """根窗口关闭事件"""
+        self._quit_callback()
+
+    def _cleanup(self) -> None:
+        """清理资源"""
         self._running = False
         if self._monitor:
             self._monitor.stop()
-        if self._main_window and self._root:
-            try:
-                self._root.quit()
-                self._root.destroy()
-            except:
-                pass
         if self._icon:
             self._icon.stop()
+
+    def _show_main_window_callback(self) -> None:
+        """显示主窗口回调（从托盘线程调用）"""
+        if self._root:
+            self._root.after(0, self._show_main_window)
+
+    def _show_settings_callback(self) -> None:
+        """显示设置回调"""
+        if self._root:
+            self._root.after(0, self._show_settings)
+
+    def _show_about_callback(self) -> None:
+        """显示关于回调"""
+        if self._notifier:
+            self._notifier.notify(
+                "关于 SteamWatch", "SteamWatch v0.1.0\nSteam游戏时长监控与限制工具"
+            )
+
+    def _quit_callback(self) -> None:
+        """退出回调"""
+        if self._root:
+            self._root.after(0, self._quit)
 
     def _show_main_window(self) -> None:
         """显示主窗口"""
@@ -127,19 +166,11 @@ class TrayApp:
         if self._main_window:
             self._main_window.show_settings_tab()
 
-    def _show_about(self) -> None:
-        """显示关于对话框"""
-        self._notifier.notify(
-            "关于 SteamWatch", "SteamWatch v0.1.0\nSteam游戏时长监控与限制工具"
-        )
-
     def _quit(self) -> None:
         """退出应用"""
-        self._running = False
-        if self._monitor:
-            self._monitor.stop()
-        if self._icon:
-            self._icon.stop()
+        self._cleanup()
+        if self._root:
+            self._root.quit()
 
     def _on_game_start(self, app_id: int) -> None:
         """游戏启动回调"""
