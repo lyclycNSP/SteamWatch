@@ -491,7 +491,9 @@ class MainWindow:
 
         dnd_info = """全屏游戏时，Windows默认启用勿扰模式，可能导致无法收到提醒通知。
 
-关闭方法：设置 → 系统 → 通知 → 自动打开勿扰模式 → 取消勾选"玩游戏时"
+关闭方法：设置 → 系统 → 通知 → 自动打开勿扰模式 → 取消勾选：
+  • 玩游戏时
+  • 在全屏模式下使用应用时
 
 详细步骤请查看 README.md 文档。"""
 
@@ -500,12 +502,12 @@ class MainWindow:
         )
         dnd_label.pack(anchor=tk.W, padx=10, pady=5)
 
+        # 游戏限额管理
         game_limit_frame = ttk.LabelFrame(frame, text="游戏限额管理")
-        game_limit_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        game_limit_frame.pack(fill=tk.X, padx=10, pady=10)
 
-        ttk.Label(
-            game_limit_frame, text='在"游戏列表"标签页中：', font=("Arial", 10, "bold")
-        ).pack(anchor=tk.W, padx=10, pady=5)
+        tips_frame = ttk.Frame(game_limit_frame)
+        tips_frame.pack(fill=tk.X, padx=10, pady=10)
 
         tips = [
             "• 双击游戏行，可设置该游戏的每日限额",
@@ -514,8 +516,8 @@ class MainWindow:
         ]
 
         for tip in tips:
-            ttk.Label(game_limit_frame, text=tip, foreground="#555555").pack(
-                anchor=tk.W, padx=20, pady=2
+            ttk.Label(tips_frame, text=tip, foreground="#555555").pack(
+                anchor=tk.W, pady=2
             )
 
         return frame
