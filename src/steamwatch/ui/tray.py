@@ -171,8 +171,8 @@ class TrayApp:
             # 计算进度和发送提醒
             if limit and limit.daily_limit > 0:
                 progress = total_today / limit.daily_limit
-                print(
-                    f"[SteamWatch] {game_name}: {total_today}/{limit.daily_limit}分钟 ({int(progress * 100)}%)"
+                self._reminder_manager.check_and_notify(
+                    real_app_id, game_name, progress, current_time
                 )
                 self._reminder_manager.check_and_notify(
                     real_app_id, game_name, progress, current_time
@@ -305,20 +305,30 @@ class TrayApp:
         if self._reminder_manager:
             self._reminder_manager.reset(real_app_id)
 
-    def _find_real_app_id(self, detected_app_id: int, process_name: str) -> int:
-        """根据进程名查找真实的AppID"""
-        if not self._cache_reader or not process_name:
-            return detected_app_id
 
-        process_lower = process_name.lower().replace(".exe", "").replace("_", " ")
-
-        for game in self._cache_reader.get_all_games():
-            game_lower = game.name.lower().replace(":", "").replace("-", "")
-            if process_lower in game_lower or game_lower in process_lower:
-                if detected_app_id != game.app_id:
-                    print(
-                        f"[SteamWatch] AppID映射: {detected_app_id} -> {game.app_id} ({game.name})"
-                    )
-                return game.app_id
-
+def _find_real_app_id(self, detected_app_id: int, process_name: str) -> int:
+    """根据进程名查找真实的AppID"""
+    if not self._cache_reader or not process_name:
         return detected_app_id
+
+    process_lower = process_name.lower().replace(".exe", "").replace("_", " ")
+
+    for game in self._cache_reader.get_all_games():
+        game_lower = game.name.lower().replace(":", "").replace("-", "")
+        if process_lower in game_lower or game_lower in process_lower:
+            return game.app_id
+
+    return detected_app_id
+
+    process_lower = process_name.lower().replace(".exe", "").replace("_", " ")
+
+    for game in self._cache_reader.get_all_games():
+        game_lower = game.name.lower().replace(":", "").replace("-", "")
+        if process_lower in game_lower or game_lower in process_lower:
+            if detected_app_id != game.app_id:
+                print(
+                    f"[SteamWatch] AppID映射: {detected_app_id} -> {game.app_id} ({game.name})"
+                )
+            return game.app_id
+
+    return detected_app_id
