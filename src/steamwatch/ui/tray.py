@@ -122,6 +122,7 @@ class TrayApp:
             time.sleep(self.CHECK_INTERVAL)
 
     def _check_running_games(self) -> None:
+        """检查运行中的游戏，发送提醒（不记录时长）"""
         if not self._monitor or not self._time_tracker:
             return
 
@@ -143,36 +144,32 @@ class TrayApp:
                 game_info.name if game_info else process_name or f"App {real_app_id}"
             )
 
+            # 当前会话时长（分钟）
             playtime_seconds = self._monitor.get_game_playtime(app_id)
             session_minutes = int(playtime_seconds / 60)
-
-            today_minutes = self._time_tracker.get_game_time(real_app_id)
-            total_today = today_minutes + session_minutes
 
             limit = self._time_tracker.get_game_limit(real_app_id)
             global_limit = self._time_tracker.get_global_limit()
 
+            # 检查单游戏限额
             if limit and limit.daily_limit > 0:
-                progress = total_today / limit.daily_limit
+                progress = session_minutes / limit.daily_limit
                 print(
-                    f"[SteamWatch] {game_name}: {total_today}/{limit.daily_limit}分钟 ({int(progress * 100)}%)"
+                    f"[SteamWatch] {game_name}: {session_minutes}/{limit.daily_limit}分钟 ({int(progress * 100)}%)"
                 )
                 self._reminder_manager.check_and_notify(
                     real_app_id, game_name, progress, current_time
                 )
 
+            # 检查全局限额
             if global_limit > 0:
-                total_global_today = (
-                    self._time_tracker.get_total_time() + session_minutes
-                )
-                global_progress = total_global_today / global_limit
+                total_global = self._time_tracker.get_total_time() + session_minutes
+                global_progress = total_global / global_limit
                 self._reminder_manager.check_and_notify(
                     0, "全局时长", global_progress, current_time
                 )
 
-            if session_minutes > 0:
-                self._time_tracker.set_game_time(real_app_id, total_today)
-
+        # 更新托盘提示
         if running_games:
             game_names = []
             for app_id in running_games:
@@ -198,14 +195,20 @@ class TrayApp:
                 pass
 
     def _find_real_app_id(self, detected_app_id: int, process_name: str) -> int:
+        """根据进程名查找真实的AppID"""
         if not self._cache_reader or not process_name:
             return detected_app_id
 
-        process_lower = process_name.lower().replace(".exe", "").replace("_", " ")
+        # 移除.exe后缀、下划线和空格用于匹配
+        process_clean = (
+            process_name.lower().replace(".exe", "").replace("_", "").replace(" ", "")
+        )
 
         for game in self._cache_reader.get_all_games():
-            game_lower = game.name.lower().replace(":", "").replace("-", "")
-            if process_lower in game_lower or game_lower in process_lower:
+            game_clean = (
+                game.name.lower().replace(":", "").replace("-", "").replace(" ", "")
+            )
+            if process_clean in game_clean or game_clean in process_clean:
                 return game.app_id
 
         return detected_app_id
@@ -256,6 +259,7 @@ class TrayApp:
             self._root.quit()
 
     def _on_game_start(self, app_id: int, process_name: str = "") -> None:
+        """游戏启动回调"""
         real_app_id = self._find_real_app_id(app_id, process_name)
         game_info = (
             self._cache_reader.get_game_info(real_app_id)
@@ -273,11 +277,13 @@ class TrayApp:
     def _on_game_stop(
         self, app_id: int, process_name: str = "", duration: float = 0.0
     ) -> None:
+        """游戏停止回调 - 此时记录时长"""
         real_app_id = self._find_real_app_id(app_id, process_name)
 
         playtime_minutes = max(1, int(duration / 60))
 
         if self._time_tracker:
+            # 记录时长
             existing = self._time_tracker.get_game_time(real_app_id)
             self._time_tracker.set_game_time(real_app_id, existing + playtime_minutes)
 
