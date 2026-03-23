@@ -85,8 +85,16 @@ class MainWindow:
         """创建窗口"""
         self._root = tk.Tk()
         self._root.title("SteamWatch")
-        self._root.geometry("900x700")
+        self._root.geometry("900x710")
         self._root.minsize(800, 600)
+
+        # 设置Windows任务栏图标
+        import ctypes
+
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("SteamWatch")
+        except:
+            pass
 
         # 设置窗口图标
         icon_ico = os.path.join("assets", "icon.ico")
