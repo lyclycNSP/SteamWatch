@@ -87,6 +87,20 @@ class MainWindow:
         self._root.geometry("900x700")
         self._root.minsize(800, 600)
 
+        # 设置窗口图标
+        import os
+
+        icon_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "assets", "icon.png"
+        )
+        if os.path.exists(icon_path):
+            try:
+                icon_image = tk.PhotoImage(file=icon_path)
+                self._root.iconphoto(True, icon_image)
+                self._icon_image = icon_image  # 保持引用
+            except Exception as e:
+                print(f"加载图标失败: {e}")
+
         self._root.protocol("WM_DELETE_WINDOW", self.hide)
 
         self._create_menu()

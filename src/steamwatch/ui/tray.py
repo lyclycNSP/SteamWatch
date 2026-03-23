@@ -56,6 +56,21 @@ class TrayApp:
         self._monitor.on("game_stop", self._on_game_stop)
 
     def _create_icon_image(self) -> Image.Image:
+        """加载托盘图标"""
+        import os
+
+        icon_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "assets", "icon.png"
+        )
+
+        if os.path.exists(icon_path):
+            image = Image.open(icon_path)
+            if image.mode != "RGBA":
+                image = image.convert("RGBA")
+            image = image.resize((64, 64), Image.Resampling.LANCZOS)
+            return image
+
+        # 如果图标文件不存在，创建默认图标
         width = 64
         height = 64
         color = (66, 133, 244, 255)
