@@ -35,6 +35,7 @@ class CacheReader:
 
     def _find_steam_path(self) -> Path:
         """自动查找Steam安装路径"""
+        # 优先从Windows注册表读取（支持任意安装位置）
         if sys.platform == "win32":
             try:
                 key = winreg.OpenKey(
@@ -45,12 +46,18 @@ class CacheReader:
             except Exception:
                 pass
 
-        common_paths = [
-            Path("C:/Program Files (x86)/Steam"),
-            Path("C:/Program Files/Steam"),
-            Path("D:/Steam"),
-            Path("E:/Steam"),
-        ]
+        # 备用：扫描常见位置
+        common_paths = []
+        for drive in ["C", "D", "E", "F", "G"]:
+            common_paths.extend(
+                [
+                    Path(f"{drive}:/Program Files (x86)/Steam"),
+                    Path(f"{drive}:/Program Files/Steam"),
+                    Path(f"{drive}:/Steam"),
+                    Path(f"{drive}:/Games/Steam"),
+                    Path(f"{drive}:/SteamLibrary"),
+                ]
+            )
 
         for path in common_paths:
             if path.exists():
