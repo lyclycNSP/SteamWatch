@@ -129,9 +129,34 @@ class MainWindow:
         """创建游戏列表标签页"""
         frame = ttk.Frame(self._notebook)
 
+        toolbar = ttk.Frame(frame)
+        toolbar.pack(fill=tk.X, padx=5, pady=5)
+
+        ttk.Button(toolbar, text="🔄 刷新列表", command=self._refresh_games).pack(
+            side=tk.LEFT, padx=5
+        )
+
+        ttk.Button(toolbar, text="➕ 设置限额", command=self._show_limit_dialog).pack(
+            side=tk.LEFT, padx=5
+        )
+
+        ttk.Button(toolbar, text="➖ 取消限额", command=self._remove_game_limit).pack(
+            side=tk.LEFT, padx=5
+        )
+
+        ttk.Separator(toolbar, orient=tk.VERTICAL).pack(
+            side=tk.LEFT, fill=tk.Y, padx=10
+        )
+
+        self._game_count_label = ttk.Label(toolbar, text="共 0 个游戏")
+        self._game_count_label.pack(side=tk.LEFT, padx=5)
+
+        tree_frame = ttk.Frame(frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
         columns = ("name", "app_id", "today_time", "limit", "status")
         self._games_tree = ttk.Treeview(
-            frame, columns=columns, show="headings", height=20
+            tree_frame, columns=columns, show="headings", height=20
         )
 
         self._games_tree.heading("name", text="游戏名称")
@@ -147,7 +172,7 @@ class MainWindow:
         self._games_tree.column("status", width=100)
 
         scrollbar = ttk.Scrollbar(
-            frame, orient=tk.VERTICAL, command=self._games_tree.yview
+            tree_frame, orient=tk.VERTICAL, command=self._games_tree.yview
         )
         self._games_tree.configure(yscrollcommand=scrollbar.set)
 
@@ -168,6 +193,9 @@ class MainWindow:
         self._games_data.clear()
 
         games = self._cache_reader.get_all_games()
+
+        if hasattr(self, "_game_count_label"):
+            self._game_count_label.config(text=f"共 {len(games)} 个游戏")
 
         for game in games:
             today_time = self._time_tracker.get_game_time(game.app_id)
@@ -474,9 +502,6 @@ class MainWindow:
         """刷新游戏列表"""
         self._cache_reader.refresh()
         self._populate_games_tree()
-        messagebox.showinfo(
-            "刷新完成", f"已加载 {len(self._cache_reader.get_all_games())} 个游戏"
-        )
 
     def _export_data(self) -> None:
         """导出数据"""
