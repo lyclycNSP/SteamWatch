@@ -34,7 +34,12 @@ try:
             pass
 
     MATPLOTLIB_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"matplotlib导入失败: {e}")
+    MATPLOTLIB_AVAILABLE = False
+    CHINESE_FONT = None
+except Exception as e:
+    print(f"matplotlib初始化错误: {e}")
     MATPLOTLIB_AVAILABLE = False
     CHINESE_FONT = None
 
