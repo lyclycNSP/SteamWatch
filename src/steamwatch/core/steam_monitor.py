@@ -199,18 +199,21 @@ class SteamMonitor:
             pid=pid, name=name, app_id=app_id, start_time=time.time()
         )
         print(f"[SteamWatch] 检测到游戏启动: {name} (AppID: {app_id})")
-        self._notify("game_start", app_id)
+        self._notify("game_start", app_id, name)
 
     def _on_game_stop(self, app_id: int) -> None:
         """游戏停止回调"""
+        proc_name = ""
+        duration = 0.0
         if app_id in self._game_processes:
             proc = self._game_processes[app_id]
+            proc_name = proc.name
             duration = time.time() - proc.start_time
             print(
-                f"[SteamWatch] 检测到游戏停止: {proc.name} (运行时长: {int(duration / 60)}分钟)"
+                f"[SteamWatch] 检测到游戏停止: {proc_name} (运行时长: {int(duration / 60)}分钟)"
             )
             del self._game_processes[app_id]
-        self._notify("game_stop", app_id)
+        self._notify("game_stop", app_id, proc_name, duration)
 
     def on(self, event: str, callback: callable) -> None:
         """

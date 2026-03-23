@@ -5,7 +5,6 @@
 import threading
 from typing import Optional
 import tkinter as tk
-from tkinter import messagebox
 from PIL import Image, ImageDraw
 
 try:
@@ -24,23 +23,18 @@ from steamwatch.ui.main_window import MainWindow
 
 
 class TrayApp:
-    """
-    系统托盘应用
-
-    管理系统托盘图标和菜单
-    """
+    """系统托盘应用"""
 
     def __init__(self):
-        """初始化托盘应用"""
-        self._icon: Optional[pystray.Icon] = None
-        self._monitor: Optional[SteamMonitor] = None
-        self._cache_reader: Optional[CacheReader] = None
-        self._time_tracker: Optional[TimeTracker] = None
-        self._notifier: Optional[Notifier] = None
-        self._main_window: Optional[MainWindow] = None
-        self._root: Optional[tk.Tk] = None
+        self._icon = None
+        self._monitor = None
+        self._cache_reader = None
+        self._time_tracker = None
+        self._notifier = None
+        self._main_window = None
+        self._root = None
         self._running = False
-        self._icon_thread: Optional[threading.Thread] = None
+        self._icon_thread = None
 
         self._setup_components()
         self._create_icon()
@@ -73,7 +67,7 @@ class TrayApp:
     def _create_icon(self) -> None:
         """创建托盘图标"""
         if pystray is None:
-            raise ImportError("pystray is required for system tray functionality")
+            raise ImportError("pystray is required")
 
         image = self._create_icon_image()
 
@@ -89,7 +83,7 @@ class TrayApp:
         self._icon = pystray.Icon("SteamWatch", image, "SteamWatch", menu)
 
     def run(self) -> None:
-        """运行应用 - tkinter在主线程"""
+        """运行应用"""
         if self._icon is None:
             raise RuntimeError("Icon not created")
 
@@ -97,32 +91,26 @@ class TrayApp:
         self._cache_reader.refresh()
         self._monitor.start()
 
-        # 在后台线程运行托盘图标
         self._icon_thread = threading.Thread(target=self._run_icon, daemon=True)
         self._icon_thread.start()
 
-        # 创建隐藏的tkinter根窗口用于事件循环
         self._root = tk.Tk()
         self._root.withdraw()
         self._root.protocol("WM_DELETE_WINDOW", self._on_root_close)
 
-        # 主事件循环
         try:
             self._root.mainloop()
         finally:
             self._cleanup()
 
     def _run_icon(self) -> None:
-        """在后台线程运行托盘图标"""
         if self._icon:
             self._icon.run()
 
     def _on_root_close(self) -> None:
-        """根窗口关闭事件"""
         self._quit_callback()
 
     def _cleanup(self) -> None:
-        """清理资源"""
         self._running = False
         if self._monitor:
             self._monitor.stop()
@@ -130,58 +118,88 @@ class TrayApp:
             self._icon.stop()
 
     def _show_main_window_callback(self) -> None:
-        """显示主窗口回调（从托盘线程调用）"""
         if self._root:
             self._root.after(0, self._show_main_window)
 
     def _show_settings_callback(self) -> None:
-        """显示设置回调"""
         if self._root:
             self._root.after(0, self._show_settings)
 
     def _show_about_callback(self) -> None:
-        """显示关于回调"""
         if self._notifier:
             self._notifier.notify(
-                "关于 SteamWatch", "SteamWatch v0.1.0\nSteam游戏时长监控与限制工具"
+                "关于 SteamWatch", "SteamWatch v0.1.0\nSteam游戏时长监控工具"
             )
 
     def _quit_callback(self) -> None:
-        """退出回调"""
         if self._root:
             self._root.after(0, self._quit)
 
     def _show_main_window(self) -> None:
-        """显示主窗口"""
         if self._main_window is None:
             self._main_window = MainWindow(
                 self._time_tracker, self._cache_reader, self._monitor
             )
-
         self._main_window.show()
 
     def _show_settings(self) -> None:
-        """显示设置窗口"""
         self._show_main_window()
         if self._main_window:
             self._main_window.show_settings_tab()
 
     def _quit(self) -> None:
-        """退出应用"""
         self._cleanup()
         if self._root:
             self._root.quit()
 
-    def _on_game_start(self, app_id: int) -> None:
+    def _on_game_start(self, app_id: int, process_name: str = "") -> None:
         """游戏启动回调"""
+        real_app_id = self._find_real_app_id(app_id, process_name)
         game_info = (
-            self._cache_reader.get_game_info(app_id) if self._cache_reader else None
+            self._cache_reader.get_game_info(real_app_id)
+            if self._cache_reader
+            else None
         )
-        game_name = game_info.name if game_info else f"App {app_id}"
+        game_name = game_info.name if game_info else process_name or f"App {app_id}"
 
         if self._notifier:
             self._notifier.notify("游戏启动", f"{game_name} 开始运行")
 
-    def _on_game_stop(self, app_id: int) -> None:
+    def _on_game_stop(
+        self, app_id: int, process_name: str = "", duration: float = 0.0
+    ) -> None:
         """游戏停止回调"""
-        pass
+        real_app_id = self._find_real_app_id(app_id, process_name)
+
+        playtime_minutes = max(1, int(duration / 60))
+
+        if self._time_tracker:
+            self._time_tracker.add_game_time(real_app_id, playtime_minutes)
+
+            game_info = (
+                self._cache_reader.get_game_info(real_app_id)
+                if self._cache_reader
+                else None
+            )
+            game_name = game_info.name if game_info else process_name or f"App {app_id}"
+
+            print(f"[SteamWatch] 记录游戏时长: {game_name} - {playtime_minutes}分钟")
+
+            if self._notifier:
+                self._notifier.notify(
+                    "游戏结束", f"{game_name} 本次运行 {playtime_minutes} 分钟"
+                )
+
+    def _find_real_app_id(self, detected_app_id: int, process_name: str) -> int:
+        """根据进程名查找真实的AppID"""
+        if not self._cache_reader or not process_name:
+            return detected_app_id
+
+        process_lower = process_name.lower().replace(".exe", "").replace("_", " ")
+
+        for game in self._cache_reader.get_all_games():
+            game_lower = game.name.lower().replace(":", "").replace("-", "")
+            if process_lower in game_lower or game_lower in process_lower:
+                return game.app_id
+
+        return detected_app_id
