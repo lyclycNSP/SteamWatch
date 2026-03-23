@@ -58,7 +58,17 @@ class TrayApp:
 
     def _create_icon_image(self) -> Image.Image:
         """加载托盘图标"""
-        icon_path = os.path.join("assets", "icon.png")
+        import sys
+
+        # PyInstaller打包后的路径
+        if getattr(sys, "frozen", False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
+
+        icon_path = os.path.join(base_path, "assets", "icon.png")
 
         if os.path.exists(icon_path):
             image = Image.open(icon_path)

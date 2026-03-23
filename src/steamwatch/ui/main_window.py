@@ -97,8 +97,18 @@ class MainWindow:
             pass
 
         # 设置窗口图标
-        icon_ico = os.path.join("assets", "icon.ico")
-        icon_png = os.path.join("assets", "icon.png")
+        import sys
+
+        # PyInstaller打包后的路径
+        if getattr(sys, "frozen", False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
+
+        icon_ico = os.path.join(base_path, "assets", "icon.ico")
+        icon_png = os.path.join(base_path, "assets", "icon.png")
 
         # 先设置iconbitmap（窗口左上角）
         if os.path.exists(icon_ico):
