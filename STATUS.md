@@ -37,10 +37,16 @@
 - 2026-04-29：加入 Steam 进程监控相关单元测试。
 - 2026-04-29：`dotnet test SteamWatch.slnx` 通过：52 passed，0 failed。
 - 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
+- 2026-04-29：实现通知消息模型、Toast XML 生成、Windows Toast 通知服务和系统声音服务。
+- 2026-04-29：实现开机自启管理接口、注册表适配器和可测试的启动项管理器。
+- 2026-04-29：Infrastructure 和测试项目切换为 Windows 目标框架，以合法使用注册表、Toast 和系统声音 API。
+- 2026-04-29：加入通知和开机自启相关单元测试。
+- 2026-04-29：`dotnet test SteamWatch.slnx` 通过：59 passed，0 failed。
+- 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
 
 ## 进行中
 
-- Windows 通知、声音提醒和开机自启基础设施设计。
+- JSON/CSV 导出基础设施设计。
 
 ## 阻塞
 
@@ -49,6 +55,5 @@
 
 ## 下一步
 
-- 实现 Windows 通知和系统声音服务。
-- 实现开机自启注册表管理。
+- 实现 JSON/CSV 导出。
 - 梳理解决方案 x64 平台配置或固定构建脚本。

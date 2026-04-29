@@ -6,10 +6,11 @@
 
   <ItemGroup>
     <PackageReference Include="System.Management" Version="10.0.7" />
+    <PackageReference Include="System.Windows.Extensions" Version="10.0.7" />
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
