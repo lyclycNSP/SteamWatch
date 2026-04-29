@@ -49,10 +49,15 @@
 - 2026-04-29：里程碑 2 基础设施任务全部完成。
 - 2026-04-29：`dotnet test SteamWatch.slnx` 通过：64 passed，0 failed。
 - 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
+- 2026-04-29：实现 WinUI 游戏列表基础版，页面启动和刷新时读取 Steam 缓存并显示游戏名称、AppID、Steam 累计时长和基础状态。
+- 2026-04-29：新增 `SteamWatchAppService` 作为应用服务编排入口，先接入 Steam 路径发现和缓存读取。
+- 2026-04-29：将游戏行 ViewModel 调整为 WinUI 友好的可设置属性类，避免 XAML 生成器与 `record` init-only 属性冲突。
+- 2026-04-29：`dotnet test SteamWatch.slnx` 通过：64 passed，0 failed。
+- 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
 
 ## 进行中
 
-- WinUI 游戏列表页面与应用服务编排设计。
+- WinUI 统计页面与设置页面设计。
 
 ## 阻塞
 
@@ -61,6 +66,7 @@
 
 ## 下一步
 
-- 构建游戏列表页面。
-- 将 Steam 缓存读取、进程监控和运行中计时接入应用服务。
+- 构建统计页面。
+- 构建设置页面。
+- 将 Steam 进程监控和运行中计时接入应用服务。
 - 梳理解决方案 x64 平台配置或固定构建脚本。

@@ -67,8 +67,10 @@
                     Grid.ColumnSpan="2"
                     DefaultLabelPosition="Right">
                     <AppBarButton
+                        x:Name="RefreshButton"
                         Icon="Refresh"
-                        Label="刷新" />
+                        Label="刷新"
+                        Click="RefreshButton_Click" />
                     <AppBarButton
                         Icon="Clock"
                         Label="设置限额" />
@@ -81,7 +83,7 @@
                     Grid.Row="1"
                     ItemsSource="{x:Bind GameRows}">
                     <ListView.ItemTemplate>
-                        <DataTemplate x:DataType="local:GameRow">
+                        <DataTemplate x:DataType="local:GameRowViewModel">
                             <Grid
                                 Padding="0,12"
                                 ColumnSpacing="12">
@@ -96,6 +98,9 @@
                                         Text="{x:Bind Name}" />
                                     <TextBlock
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="{x:Bind AppIdText}" />
+                                    <TextBlock
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                         Text="{x:Bind Status}" />
                                 </StackPanel>
                                 <StackPanel
@@ -108,6 +113,10 @@
                                         HorizontalAlignment="Right"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                         Text="{x:Bind WeekText}" />
+                                    <TextBlock
+                                        HorizontalAlignment="Right"
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="{x:Bind SteamPlaytimeText}" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -120,9 +129,9 @@
                     Spacing="16">
                     <InfoBar
                         IsOpen="True"
-                        Message="等待接入 Steam 进程监控。"
+                        Message="{x:Bind StatusMessage, Mode=OneWay}"
                         Severity="Informational"
-                        Title="监控未启动" />
+                        Title="Steam 状态" />
                     <StackPanel Spacing="8">
                         <TextBlock
                             FontSize="18"
@@ -133,7 +142,7 @@
                             Value="0" />
                         <TextBlock
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="全局日限额未设置" />
+                            Text="{x:Bind GameCountText, Mode=OneWay}" />
                     </StackPanel>
                 </StackPanel>
             </Grid>
