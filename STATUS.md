@@ -43,10 +43,16 @@
 - 2026-04-29：加入通知和开机自启相关单元测试。
 - 2026-04-29：`dotnet test SteamWatch.slnx` 通过：59 passed，0 failed。
 - 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
+- 2026-04-29：实现 JSON/CSV 导出快照模型，包含游戏列表、时长记录、限额规则和应用设置。
+- 2026-04-29：实现完整 JSON 导出、每日时长 CSV、周汇总 CSV 和限额配置 CSV。
+- 2026-04-29：CSV 日期格式固定为 `yyyy-MM-dd`，避免受系统区域设置影响。
+- 2026-04-29：里程碑 2 基础设施任务全部完成。
+- 2026-04-29：`dotnet test SteamWatch.slnx` 通过：64 passed，0 failed。
+- 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
 
 ## 进行中
 
-- JSON/CSV 导出基础设施设计。
+- WinUI 游戏列表页面与应用服务编排设计。
 
 ## 阻塞
 
@@ -55,5 +61,6 @@
 
 ## 下一步
 
-- 实现 JSON/CSV 导出。
+- 构建游戏列表页面。
+- 将 Steam 缓存读取、进程监控和运行中计时接入应用服务。
 - 梳理解决方案 x64 平台配置或固定构建脚本。
