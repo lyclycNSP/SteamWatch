@@ -28,10 +28,14 @@
 - 2026-04-29：`dotnet test SteamWatch.slnx` 通过：27 passed，0 failed。
 - 2026-04-29：`dotnet build SteamWatch.slnx` 通过：0 warnings，0 errors。
 - 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
+- 2026-04-29：实现 Steam 安装路径发现、SteamID 64 转 32、`loginusers.vdf` 解析、`localconfig.vdf` 时长解析、`appmanifest_*.acf` 游戏解析和图标路径查找。
+- 2026-04-29：加入 Steam 缓存读取相关单元测试。
+- 2026-04-29：`dotnet test SteamWatch.slnx` 通过：36 passed，0 failed。
+- 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
 
 ## 进行中
 
-- Steam 缓存读取与进程监控基础设施设计。
+- Steam 进程监控基础设施设计。
 
 ## 阻塞
 
@@ -40,6 +44,5 @@
 
 ## 下一步
 
-- 实现 Steam 缓存读取。
 - 实现 Steam 进程监控。
 - 梳理解决方案 x64 平台配置或固定构建脚本。
