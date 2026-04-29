@@ -1,45 +1,59 @@
-# SteamWatch WinUI SPEC
+# SteamWatch WinUI 需求规格
 
-## 1. Product Goal
-SteamWatch WinUI is a Windows-native Steam playtime monitor and limiter for personal self-control and time statistics. The app runs mainly from the system tray, monitors Steam games locally, records playtime, warns near limits, and can optionally force-close games after configured limits are exceeded.
+## 1. 产品目标
 
-## 2. Target Platform
-- Windows 10/11 x64.
-- C#/.NET with WinUI 3 and Windows App SDK for the app shell.
-- ZIP portable distribution is the primary release form.
-- Data compatibility with the old Python version is not required.
+SteamWatch WinUI 是一个 Windows 原生 Steam 游戏时长监控与限制工具，用于个人自我约束和时间统计。应用以系统托盘常驻为主，离线读取 Steam 本地数据，实时记录游戏时长，在接近限额时提醒，并可按用户配置在超限后强制退出游戏。
 
-## 3. Core Features
-- Detect Steam installation path from Windows registry and common install locations.
-- Read Steam local cache files for user/game metadata and local icons.
-- Monitor Steam and Steam-launched game processes.
-- Track playtime incrementally while games are running.
-- Support per-game daily limits and per-game weekly limits.
-- Support global daily total limits and global weekly total limits.
-- Weekly limits use Monday through Sunday as the natural week.
-- Reminder escalation thresholds: 70%, 85%, 95%, and 100%.
-- Enforcement mode is configurable per game: NotifyOnly or ForceClose.
-- Global limit enforcement is configurable and defaults to NotifyOnly.
-- ForceClose uses a warning countdown before closing, default 60 seconds.
-- Closing the main window is configurable: minimize to tray or exit app. Default is minimize to tray.
-- Startup with Windows is configurable on/off.
-- Manual export supports JSON for backup/restore-style full data and CSV for spreadsheet analysis.
+## 2. 目标平台
 
-## 4. Data Rules
-- Playtime is stored as daily per-game minute records.
-- Weekly totals are derived from daily records instead of being stored as independent mutable state.
-- A week starts on Monday and ends on Sunday.
-- Limit rules include scope, period, minutes, and enforcement mode.
-- Runtime data is stored under the app data directory for the portable app.
+- 目标系统：Windows 10/11 x64。
+- 技术栈：C# / .NET / WinUI 3 / Windows App SDK。
+- 分发方式：优先提供 ZIP 绿色版。
+- 旧数据兼容：不要求兼容旧 Python 版 `data/config.json` 和 `data/timedata.json`。
 
-## 5. Safety Rules
-- ForceClose must save the active session before attempting process termination.
-- ForceClose first attempts graceful close, then terminates the process tree if still running.
-- All detection, reminder, save, export, startup, and force-close failures must be logged.
-- ForceClose must be user-configurable and not silently enabled for every game.
+## 3. 核心功能
 
-## 6. UX Requirements
-- First screen is the application itself, not a landing page.
-- Main views: Games, Statistics, Settings, Activity Log.
-- Tray menu: Open SteamWatch, Pause Monitoring, Settings, Exit.
-- Settings must expose close behavior, startup with Windows, reminders, sound, and global limits.
+- 自动发现 Steam 安装路径，优先读取 Windows 注册表，失败后扫描常见路径。
+- 读取 Steam 本地缓存，获取用户、游戏列表、游戏名称和本地图标。
+- 监控 Steam 和 Steam 启动的游戏进程。
+- 游戏运行中增量记录时长，避免只在退出时落盘导致数据丢失。
+- 支持单游戏每日限额和单游戏每周限额。
+- 支持全部游戏每日总时长限额和全部游戏每周总时长限额。
+- 每周统计周期固定为周一到周日。
+- 渐强提醒阈值固定为 70%、85%、95%、100%。
+- 单游戏执行策略可配置为“仅提醒”或“强制退出”。
+- 全局限额执行策略可配置，默认仅提醒。
+- 强制退出前先倒计时提醒，默认倒计时 60 秒。
+- 关闭主窗口行为可配置为“最小化到托盘”或“退出应用”，默认最小化到托盘。
+- 开机自启可在设置中开启或关闭。
+- 支持手动导出 JSON 和 CSV。
+
+## 4. 数据规则
+
+- 时长以“每日、每游戏、分钟”为最小持久化单位。
+- 周统计由每日记录按周一到周日聚合得出，不单独维护可变周记录。
+- 限额规则包含范围、周期、分钟数、执行策略和可选游戏 AppID。
+- JSON 导出用于完整备份，包含游戏列表、每日记录、限额配置和应用设置。
+- CSV 导出用于表格分析，包含每日/每周时长明细、限额配置和汇总结果。
+- 运行时数据存放在绿色版应用的数据目录中。
+
+## 5. 安全与可靠性
+
+- 强制退出前必须先保存当前运行会话时长。
+- 强制退出优先尝试温和关闭主窗口，失败后再终止进程树。
+- 游戏识别必须可解释，禁止使用不可追踪的哈希猜测作为最终 AppID。
+- 监控、提醒、保存、导出、自启、强退失败都必须写日志。
+- 强制退出必须由用户显式配置，不能对所有游戏默认启用。
+
+## 6. 用户体验
+
+- 首屏直接进入应用功能界面，不做营销式首页。
+- 主视图包含：游戏列表、统计、设置、活动日志。
+- 托盘菜单包含：打开 SteamWatch、暂停监控、设置、退出。
+- 设置页必须暴露关闭行为、开机自启、提醒、声音、全局限额和强退相关配置。
+
+## 7. 待补充讨论
+
+- **待补充讨论**：强制退出倒计时默认 60 秒是否需要允许用户自定义。
+- **待补充讨论**：全局限额启用强退时，应强退当前正在运行的所有游戏，还是只强退最长运行的游戏。
+- **待补充讨论**：是否需要“临时放行 15 分钟”能力，避免强退策略过于僵硬。

@@ -1,36 +1,43 @@
-# SteamWatch WinUI PLAN
+# SteamWatch WinUI 开发计划
 
-## Milestone 0 - Project Foundation
-- [x] Create project directory at D:\000MyWorkSpace\SteamWatch.WinUI.
-- [x] Initialize git repository.
-- [x] Create solution with Core, Infrastructure, and Tests projects.
-- [x] Establish SPEC.md, PLAN.md, and STATUS.md as the only project board.
-- [ ] Install or enable WinUI 3 templates and Windows App SDK workload.
+## 里程碑 0 - 项目基础
 
-## Milestone 1 - Core Domain
-- [x] Add limit period, limit scope, and enforcement mode domain types.
-- [x] Add daily playtime records and Monday-based weekly aggregation.
-- [x] Add limit evaluator tests for daily and weekly rules.
-- [ ] Add reminder escalation state machine.
-- [ ] Add force-close policy model and countdown states.
+- [x] 在 `D:\000MyWorkSpace\SteamWatch.WinUI` 创建项目目录。
+- [x] 初始化独立 git 仓库。
+- [x] 创建包含 Core、Infrastructure、Tests 的解决方案。
+- [x] 建立 `SPEC.md`、`PLAN.md`、`STATUS.md` 作为唯一项目看板。
+- [x] 将三份看板文档统一改为中文。
+- [ ] 安装或启用 WinUI 3 模板与 Windows App SDK 工作负载。
 
-## Milestone 2 - Infrastructure
-- [ ] Implement JSON storage.
-- [ ] Implement Steam cache reader.
-- [ ] Implement Steam process monitor.
-- [ ] Implement Windows notification and sound services.
-- [ ] Implement startup registry manager.
-- [ ] Implement JSON/CSV export.
+## 里程碑 1 - 核心领域模型
 
-## Milestone 3 - WinUI App
-- [ ] Create WinUI 3 app project after templates are available.
-- [ ] Build Games page.
-- [ ] Build Statistics page.
-- [ ] Build Settings page.
-- [ ] Build tray integration and configurable close behavior.
+- [x] 增加限额周期、限额范围、执行策略类型。
+- [x] 增加每日时长记录和基于周一的周聚合。
+- [x] 增加每日/每周/全局限额评估测试。
+- [x] 增加渐强提醒状态机。
+- [x] 增加强制退出策略模型和倒计时状态。
+- [ ] 增加运行中会话增量计时模型。
 
-## Milestone 4 - Packaging and Validation
-- [ ] Add portable publish script.
-- [ ] Produce ZIP release artifact.
-- [ ] Complete manual Windows acceptance test.
-- [ ] Tag v0.1.0-winui.
+## 里程碑 2 - 基础设施
+
+- [ ] 实现 JSON 存储。
+- [ ] 实现 Steam 缓存读取。
+- [ ] 实现 Steam 进程监控。
+- [ ] 实现 Windows 通知和系统声音服务。
+- [ ] 实现开机自启注册表管理。
+- [ ] 实现 JSON/CSV 导出。
+
+## 里程碑 3 - WinUI 应用
+
+- [ ] WinUI 模板可用后创建 WinUI 3 应用项目。
+- [ ] 构建游戏列表页面。
+- [ ] 构建统计页面。
+- [ ] 构建设置页面。
+- [ ] 构建托盘集成和可配置关闭行为。
+
+## 里程碑 4 - 打包与验收
+
+- [ ] 增加绿色版发布脚本。
+- [ ] 生成 ZIP 发布产物。
+- [ ] 完成 Windows 手动验收测试。
+- [ ] 标记 `v0.1.0-winui`。

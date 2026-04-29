@@ -1,27 +1,35 @@
-# SteamWatch WinUI STATUS
+# SteamWatch WinUI 项目状态
 
-## Current State
-Project initialization is complete for the non-UI foundation. The .NET SDK and Git are available in the current environment. WinUI templates are not currently installed, so the WinUI app project is blocked until Windows App SDK templates are installed. Core domain development has started with day/week limit evaluation and Monday-based weekly aggregation.
+## 当前状态
 
-## Completed
-- 2026-04-29: Verified .NET SDK 10.0.203 and Git 2.52.0 are available.
-- 2026-04-29: Created D:\000MyWorkSpace\SteamWatch.WinUI.
-- 2026-04-29: Initialized independent git repository.
-- 2026-04-29: Created Core, Infrastructure, and Tests projects.
-- 2026-04-29: Created SPEC.md, PLAN.md, and STATUS.md as the project board.
-- 2026-04-29: Added initial core limit evaluation and weekly aggregation model.
-- 2026-04-29: Added copied application icons from the old project.
-- 2026-04-29: Added 4 MSTest cases for day/week/global limit evaluation.
-- 2026-04-29: `dotnet test SteamWatch.slnx` passed: 4 passed, 0 failed.
-- 2026-04-29: `dotnet build SteamWatch.slnx` passed: 0 warnings, 0 errors.
+非 UI 基础工程已经完成初始化。.NET SDK 和 Git 在当前环境中可用。WinUI 模板尚未安装，因此 WinUI 应用项目仍然阻塞；当前优先推进可测试的 Core 层领域逻辑。
 
-## In Progress
-- Core domain modeling for reminder escalation and force-close policy.
+## 已完成
 
-## Blocked
-- WinUI app project generation is blocked because `dotnet new list winui` finds no WinUI templates and no .NET workloads are installed.
+- 2026-04-29：确认 .NET SDK 10.0.203 和 Git 2.52.0 可用。
+- 2026-04-29：创建 `D:\000MyWorkSpace\SteamWatch.WinUI`。
+- 2026-04-29：初始化独立 git 仓库。
+- 2026-04-29：创建 Core、Infrastructure、Tests 项目。
+- 2026-04-29：创建 `SPEC.md`、`PLAN.md`、`STATUS.md` 作为项目唯一看板。
+- 2026-04-29：加入初始限额评估和周聚合模型。
+- 2026-04-29：从旧项目复制应用图标。
+- 2026-04-29：加入 4 个 MSTest 用例覆盖日/周/全局限额评估。
+- 2026-04-29：`dotnet test SteamWatch.slnx` 通过：16 passed，0 failed。
+- 2026-04-29：`dotnet build SteamWatch.slnx` 通过：0 warnings，0 errors。
+- 2026-04-29：将三份看板文档统一改为中文。
+- 2026-04-29：加入渐强提醒状态机。
+- 2026-04-29：加入强制退出策略和倒计时状态模型。
 
-## Next
-- Install WinUI 3 / Windows App SDK templates through Visual Studio Installer or official WinUI configuration.
-- Add reminder escalation and force-close policy tests.
-- Add JSON storage implementation.
+## 进行中
+
+- Core 层运行中会话计时与持久化前置模型。
+
+## 阻塞
+
+- WinUI 应用项目生成被阻塞：`dotnet new list winui` 找不到 WinUI 模板，当前未安装 .NET workload。
+
+## 下一步
+
+- 安装 WinUI 3 / Windows App SDK 模板。
+- 增加运行中会话增量计时模型。
+- 增加 JSON 存储实现。
