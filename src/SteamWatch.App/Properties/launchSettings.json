@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "SteamWatch.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "SteamWatch.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

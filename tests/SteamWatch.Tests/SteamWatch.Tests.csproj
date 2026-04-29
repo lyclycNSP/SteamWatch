@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SteamWatch.Core\SteamWatch.Core.csproj" />
+    <ProjectReference Include="..\..\src\SteamWatch.Infrastructure\SteamWatch.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
