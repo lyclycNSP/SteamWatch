@@ -32,10 +32,15 @@
 - 2026-04-29：加入 Steam 缓存读取相关单元测试。
 - 2026-04-29：`dotnet test SteamWatch.slnx` 通过：36 passed，0 failed。
 - 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
+- 2026-04-29：实现 Steam 进程快照模型、AppID 识别规则、运行游戏状态机和 Windows 进程快照读取器。
+- 2026-04-29：移除旧版不可解释的 AppID 哈希猜测策略，只接受 `steam_app_数字`、Steam overlay 目标或已知 Steam 游戏路径匹配。
+- 2026-04-29：加入 Steam 进程监控相关单元测试。
+- 2026-04-29：`dotnet test SteamWatch.slnx` 通过：52 passed，0 failed。
+- 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
 
 ## 进行中
 
-- Steam 进程监控基础设施设计。
+- Windows 通知、声音提醒和开机自启基础设施设计。
 
 ## 阻塞
 
@@ -44,5 +49,6 @@
 
 ## 下一步
 
-- 实现 Steam 进程监控。
+- 实现 Windows 通知和系统声音服务。
+- 实现开机自启注册表管理。
 - 梳理解决方案 x64 平台配置或固定构建脚本。
