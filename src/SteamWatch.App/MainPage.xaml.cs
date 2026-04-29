@@ -10,6 +10,7 @@ namespace SteamWatch.App;
 public sealed partial class MainPage : Page, INotifyPropertyChanged
 {
     private readonly SteamWatchAppService _appService = new();
+    private readonly DispatcherTimer _monitorTimer = new() { Interval = TimeSpan.FromSeconds(10) };
     private string _statusMessage = "等待读取 Steam 缓存。";
     private string _gameCountText = "游戏 0 个";
 
@@ -32,6 +33,7 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
     public MainPage()
     {
         InitializeComponent();
+        _monitorTimer.Tick += MonitorTimer_Tick;
         _ = LoadGamesAsync();
     }
 
@@ -95,6 +97,8 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
             StatusMessage = snapshot.StatusText;
             GameCountText = $"游戏 {GameRows.Count} 个";
             PageSubtitle.Text = $"游戏 {GameRows.Count} 个 / 今日 0 分钟 / 本周 0 分钟";
+            _monitorTimer.Start();
+            RefreshRuntimeStatus();
         }
         catch (Exception ex)
         {
@@ -105,6 +109,44 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         {
             RefreshButton.IsEnabled = true;
         }
+    }
+
+    private void MonitorTimer_Tick(object? sender, object e)
+    {
+        RefreshRuntimeStatus();
+    }
+
+    private void RefreshRuntimeStatus()
+    {
+        try
+        {
+            var snapshot = _appService.PollRuntimeStatus(DateTimeOffset.Now);
+            ReplaceGameRows(snapshot.Games);
+            StatusMessage = snapshot.StatusText;
+
+            var totalToday = snapshot.Games.Sum(game => ExtractMinutes(game.TodayText));
+            var totalWeek = snapshot.Games.Sum(game => ExtractMinutes(game.WeekText));
+            PageSubtitle.Text = $"游戏 {GameRows.Count} 个 / 今日 {totalToday} 分钟 / 本周 {totalWeek} 分钟";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"监控刷新失败：{ex.Message}";
+        }
+    }
+
+    private void ReplaceGameRows(IEnumerable<GameRowViewModel> games)
+    {
+        GameRows.Clear();
+        foreach (var game in games)
+        {
+            GameRows.Add(game);
+        }
+    }
+
+    private static int ExtractMinutes(string text)
+    {
+        var digits = new string(text.Where(char.IsDigit).ToArray());
+        return int.TryParse(digits, out var minutes) ? minutes : 0;
     }
 
     private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

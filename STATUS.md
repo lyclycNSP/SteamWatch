@@ -54,10 +54,15 @@
 - 2026-04-29：将游戏行 ViewModel 调整为 WinUI 友好的可设置属性类，避免 XAML 生成器与 `record` init-only 属性冲突。
 - 2026-04-29：`dotnet test SteamWatch.slnx` 通过：64 passed，0 failed。
 - 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
+- 2026-04-29：应用服务接入 Steam 进程监控轮询和运行中会话计时。
+- 2026-04-29：游戏列表页面每 10 秒刷新运行状态，显示运行中/未运行和本次会话产生的今日/本周分钟数。
+- 2026-04-29：当前计时先以内存会话显示，持久化到 JSON 将在后续接入。
+- 2026-04-29：`dotnet test SteamWatch.slnx` 通过：64 passed，0 failed。
+- 2026-04-29：`dotnet build src\SteamWatch.App\SteamWatch.App.csproj -c Debug -p:Platform=x64` 通过：0 warnings，0 errors。
 
 ## 进行中
 
-- WinUI 统计页面与设置页面设计。
+- 运行中计时持久化与提醒触发编排设计。
 
 ## 阻塞
 
@@ -66,7 +71,8 @@
 
 ## 下一步
 
+- 将运行中计时持久化到 JSON。
+- 接入限额评估、渐强提醒和强退倒计时。
 - 构建统计页面。
 - 构建设置页面。
-- 将 Steam 进程监控和运行中计时接入应用服务。
 - 梳理解决方案 x64 平台配置或固定构建脚本。

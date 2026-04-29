@@ -37,4 +37,15 @@ public sealed class GameRowViewModel
     public string AppIdText => $"AppID {AppId}";
 
     public string SteamPlaytimeText => $"Steam 累计 {PlaytimeForeverMinutes} 分钟";
+
+    public GameRowViewModel WithRuntimeState(bool isRunning, int todayMinutes, int weekMinutes)
+    {
+        return new GameRowViewModel(
+            AppId,
+            Name,
+            PlaytimeForeverMinutes,
+            isRunning ? "运行中" : "未运行",
+            $"今日 {todayMinutes} 分钟",
+            $"本周 {weekMinutes} 分钟");
+    }
 }
