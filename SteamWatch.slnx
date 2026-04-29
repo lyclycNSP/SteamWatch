@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SteamWatch.Core/SteamWatch.Core.csproj" />
+    <Project Path="src/SteamWatch.Infrastructure/SteamWatch.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SteamWatch.Tests/SteamWatch.Tests.csproj" />
+  </Folder>
+</Solution>

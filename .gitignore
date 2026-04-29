@@ -1,0 +1,17 @@
+# Build outputs
+bin/
+obj/
+.vs/
+.vscode/
+
+# User/runtime data
+data/
+logs/
+exports/
+*.user
+*.suo
+
+# Packaging output
+artifacts/
+dist/
+publish/
