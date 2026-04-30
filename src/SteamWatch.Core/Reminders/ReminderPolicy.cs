@@ -2,14 +2,7 @@ namespace SteamWatch.Core.Reminders;
 
 public sealed class ReminderPolicy
 {
-    private static readonly IReadOnlyDictionary<ReminderLevel, double> Thresholds =
-        new Dictionary<ReminderLevel, double>
-        {
-            [ReminderLevel.FirstWarning] = 0.70,
-            [ReminderLevel.SecondWarning] = 0.85,
-            [ReminderLevel.FinalWarning] = 0.95,
-            [ReminderLevel.Exceeded] = 1.00
-        };
+    private readonly IReadOnlyDictionary<ReminderLevel, double> _thresholds;
 
     private static readonly IReadOnlyDictionary<ReminderLevel, TimeSpan> Intervals =
         new Dictionary<ReminderLevel, TimeSpan>
@@ -20,24 +13,36 @@ public sealed class ReminderPolicy
             [ReminderLevel.Exceeded] = TimeSpan.FromMinutes(1)
         };
 
+    public ReminderPolicy(ReminderThresholdSettings? thresholdSettings = null)
+    {
+        var settings = NormalizeThresholds(thresholdSettings ?? new ReminderThresholdSettings());
+        _thresholds = new Dictionary<ReminderLevel, double>
+        {
+            [ReminderLevel.FirstWarning] = settings.FirstWarningPercent / 100.0,
+            [ReminderLevel.SecondWarning] = settings.SecondWarningPercent / 100.0,
+            [ReminderLevel.FinalWarning] = settings.FinalWarningPercent / 100.0,
+            [ReminderLevel.Exceeded] = 1.00
+        };
+    }
+
     public ReminderLevel CalculateLevel(double progress)
     {
-        if (progress >= Thresholds[ReminderLevel.Exceeded])
+        if (progress >= _thresholds[ReminderLevel.Exceeded])
         {
             return ReminderLevel.Exceeded;
         }
 
-        if (progress >= Thresholds[ReminderLevel.FinalWarning])
+        if (progress >= _thresholds[ReminderLevel.FinalWarning])
         {
             return ReminderLevel.FinalWarning;
         }
 
-        if (progress >= Thresholds[ReminderLevel.SecondWarning])
+        if (progress >= _thresholds[ReminderLevel.SecondWarning])
         {
             return ReminderLevel.SecondWarning;
         }
 
-        if (progress >= Thresholds[ReminderLevel.FirstWarning])
+        if (progress >= _thresholds[ReminderLevel.FirstWarning])
         {
             return ReminderLevel.FirstWarning;
         }
@@ -70,5 +75,13 @@ public sealed class ReminderPolicy
         };
 
         return new ReminderDecision(true, level, nextState);
+    }
+
+    private static ReminderThresholdSettings NormalizeThresholds(ReminderThresholdSettings settings)
+    {
+        var first = Math.Clamp(settings.FirstWarningPercent, 1, 99);
+        var second = Math.Clamp(settings.SecondWarningPercent, first + 1, 99);
+        var final = Math.Clamp(settings.FinalWarningPercent, second + 1, 99);
+        return new ReminderThresholdSettings(first, second, final);
     }
 }

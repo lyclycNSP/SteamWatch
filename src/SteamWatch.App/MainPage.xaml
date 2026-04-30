@@ -18,16 +18,17 @@
         <NavigationView.MenuItems>
             <NavigationViewItem
                 Content="游戏"
-                Icon="Play"
-                Tag="Games" />
+                Tag="Games">
+                <NavigationViewItem.Icon>
+                    <FontIcon
+                        FontFamily="Segoe MDL2 Assets"
+                        Glyph="&#xE7FC;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem
                 Content="统计"
                 Icon="Calendar"
                 Tag="Statistics" />
-            <NavigationViewItem
-                Content="日志"
-                Icon="Document"
-                Tag="ActivityLog" />
         </NavigationView.MenuItems>
 
         <Grid Padding="24">
@@ -72,79 +73,277 @@
                         Label="刷新"
                         Click="RefreshButton_Click" />
                     <AppBarButton
-                        Icon="Clock"
-                        Label="设置限额" />
+                        x:Name="PauseMonitoringButton"
+                        Icon="Pause"
+                        Label="暂停监控"
+                        Click="PauseMonitoringButton_Click" />
                     <AppBarButton
+                        x:Name="SetLimitForSelectedButton"
+                        Icon="Clock"
+                        Label="设置限额"
+                        Click="SetLimitForSelectedButton_Click" />
+                    <AppBarButton
+                        x:Name="ForceClosePolicyButton"
                         Icon="Stop"
-                        Label="强退策略" />
+                        Label="强退策略"
+                        Click="ForceClosePolicyButton_Click" />
                 </CommandBar>
 
                 <ListView
+                    x:Name="GamesListView"
                     Grid.Row="1"
-                    ItemsSource="{x:Bind GameRows}">
+                    ItemsSource="{x:Bind GameRows}"
+                    SelectionChanged="GamesListView_SelectionChanged">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="local:GameRowViewModel">
                             <Grid
                                 Padding="0,12"
                                 ColumnSpacing="12">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel>
+                                <Image
+                                    Width="32"
+                                    Height="32"
+                                    VerticalAlignment="Top"
+                                    Source="{x:Bind IconSource, Mode=OneWay}" />
+                                <StackPanel Grid.Column="1">
                                     <TextBlock
                                         FontSize="16"
                                         FontWeight="SemiBold"
-                                        Text="{x:Bind Name}" />
+                                        Text="{x:Bind Name, Mode=OneWay}" />
                                     <TextBlock
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        Text="{x:Bind AppIdText}" />
+                                        Text="{x:Bind AppIdText, Mode=OneWay}" />
                                     <TextBlock
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        Text="{x:Bind Status}" />
+                                        Text="{x:Bind Status, Mode=OneWay}" />
                                 </StackPanel>
                                 <StackPanel
-                                    Grid.Column="1"
+                                    Grid.Column="2"
                                     HorizontalAlignment="Right">
                                     <TextBlock
                                         HorizontalAlignment="Right"
-                                        Text="{x:Bind TodayText}" />
+                                        Text="{x:Bind TodayText, Mode=OneWay}" />
                                     <TextBlock
                                         HorizontalAlignment="Right"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        Text="{x:Bind WeekText}" />
+                                        Text="{x:Bind WeekText, Mode=OneWay}" />
                                     <TextBlock
                                         HorizontalAlignment="Right"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                        Text="{x:Bind SteamPlaytimeText}" />
+                                        Text="{x:Bind SteamPlaytimeText, Mode=OneWay}" />
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
 
-                <StackPanel
+                <ScrollViewer
                     Grid.Row="1"
-                    Grid.Column="1"
-                    Spacing="16">
-                    <InfoBar
-                        IsOpen="True"
-                        Message="{x:Bind StatusMessage, Mode=OneWay}"
-                        Severity="Informational"
-                        Title="Steam 状态" />
-                    <StackPanel Spacing="8">
-                        <TextBlock
-                            FontSize="18"
-                            FontWeight="SemiBold"
-                            Text="限额概览" />
-                        <ProgressBar
-                            Maximum="100"
-                            Value="0" />
-                        <TextBlock
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="{x:Bind GameCountText, Mode=OneWay}" />
+                    Grid.Column="1">
+                    <StackPanel Spacing="16">
+                        <InfoBar
+                            IsOpen="True"
+                            Message="{x:Bind StatusMessage, Mode=OneWay}"
+                            Severity="Informational"
+                            Title="Steam 状态" />
+                        <StackPanel Spacing="8">
+                            <TextBlock
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Text="限额概览" />
+                            <ProgressBar
+                                Maximum="100"
+                                Value="0" />
+                            <TextBlock
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{x:Bind GameCountText, Mode=OneWay}" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="10">
+                            <TextBlock
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Text="限额配置" />
+                            <ComboBox
+                                x:Name="LimitScopeComboBox"
+                                Header="范围"
+                                SelectedIndex="0">
+                                <ComboBoxItem Content="全部游戏" />
+                                <ComboBoxItem Content="所选游戏" />
+                            </ComboBox>
+                            <ComboBox
+                                x:Name="LimitPeriodComboBox"
+                                Header="周期"
+                                SelectedIndex="0">
+                                <ComboBoxItem Content="每日" />
+                                <ComboBoxItem Content="每周" />
+                            </ComboBox>
+                            <NumberBox
+                                x:Name="LimitMinutesNumberBox"
+                                Header="限额分钟"
+                                LargeChange="60"
+                                Maximum="10080"
+                                Minimum="1"
+                                SmallChange="15"
+                                SpinButtonPlacementMode="Compact"
+                                Value="60" />
+                            <ComboBox
+                                x:Name="LimitEnforcementComboBox"
+                                Header="超限策略"
+                                SelectedIndex="0">
+                                <ComboBoxItem Content="仅提醒" />
+                                <ComboBoxItem Content="强制退出" />
+                            </ComboBox>
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <Button
+                                    x:Name="SaveLimitButton"
+                                    Click="SaveLimitButton_Click"
+                                    Content="保存限额" />
+                                <Button
+                                    x:Name="DeleteLimitRuleButton"
+                                    Click="DeleteLimitRuleButton_Click"
+                                    Content="删除规则"
+                                    IsEnabled="False" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel Spacing="8">
+                            <TextBlock
+                                FontSize="18"
+                                FontWeight="SemiBold"
+                                Text="已保存规则" />
+                            <ListView
+                                x:Name="LimitRulesListView"
+                                MaxHeight="260"
+                                ItemsSource="{x:Bind LimitRows}"
+                                SelectionChanged="LimitRulesListView_SelectionChanged"
+                                SelectionMode="Single">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="local:LimitRuleRowViewModel">
+                                        <Grid
+                                            Padding="0,8"
+                                            RowSpacing="2">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <TextBlock
+                                                FontWeight="SemiBold"
+                                                Text="{x:Bind SummaryText}" />
+                                            <TextBlock
+                                                Grid.Row="1"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="{x:Bind EnforcementText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </ScrollViewer>
+            </Grid>
+
+            <Grid
+                x:Name="StatisticsView"
+                Grid.Row="2"
+                ColumnSpacing="20"
+                Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Grid RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Text="每日明细" />
+                    <ListView
+                        Grid.Row="1"
+                        ItemsSource="{x:Bind DailyStatRows}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:PlaytimeStatRowViewModel">
+                                <Grid
+                                    Padding="0,10"
+                                    ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock
+                                            FontWeight="SemiBold"
+                                            Text="{x:Bind GameName}" />
+                                        <TextBlock
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="{x:Bind PeriodText}" />
+                                        <TextBlock
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="{x:Bind AppIdText}" />
+                                    </StackPanel>
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Right"
+                                        Text="{x:Bind MinutesText}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+
+                <Grid
+                    Grid.Column="1"
+                    RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Text="每周汇总" />
+                    <ListView
+                        Grid.Row="1"
+                        ItemsSource="{x:Bind WeeklyStatRows}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:PlaytimeStatRowViewModel">
+                                <Grid
+                                    Padding="0,10"
+                                    ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock
+                                            FontWeight="SemiBold"
+                                            Text="{x:Bind GameName}" />
+                                        <TextBlock
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="{x:Bind PeriodText}" />
+                                        <TextBlock
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="{x:Bind AppIdText}" />
+                                    </StackPanel>
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Right"
+                                        Text="{x:Bind MinutesText}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
             </Grid>
 
             <Grid
@@ -156,13 +355,18 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <ToggleSwitch
+                    x:Name="StartWithWindowsSwitch"
                     Header="开机自启"
                     OffContent="关闭"
                     OnContent="开启" />
                 <ComboBox
+                    x:Name="CloseWindowActionComboBox"
                     Grid.Row="1"
                     Header="关闭窗口时"
                     SelectedIndex="0">
@@ -170,11 +374,56 @@
                     <ComboBoxItem Content="退出应用" />
                 </ComboBox>
                 <ToggleSwitch
+                    x:Name="PlayReminderSoundsSwitch"
                     Grid.Row="2"
                     Header="默认启用声音提醒"
                     IsOn="True"
                     OffContent="关闭"
                     OnContent="开启" />
+                <NumberBox
+                    x:Name="ForceCloseCountdownNumberBox"
+                    Grid.Row="3"
+                    Header="强退倒计时秒数"
+                    LargeChange="30"
+                    Maximum="600"
+                    Minimum="5"
+                    SmallChange="5"
+                    SpinButtonPlacementMode="Compact"
+                    Value="60" />
+                <StackPanel
+                    Grid.Row="4"
+                    Orientation="Horizontal"
+                    Spacing="12">
+                    <NumberBox
+                        x:Name="FirstReminderThresholdNumberBox"
+                        Header="一级提醒 %"
+                        Maximum="99"
+                        Minimum="1"
+                        SpinButtonPlacementMode="Compact"
+                        Value="70"
+                        Width="140" />
+                    <NumberBox
+                        x:Name="SecondReminderThresholdNumberBox"
+                        Header="二级提醒 %"
+                        Maximum="99"
+                        Minimum="2"
+                        SpinButtonPlacementMode="Compact"
+                        Value="85"
+                        Width="140" />
+                    <NumberBox
+                        x:Name="FinalReminderThresholdNumberBox"
+                        Header="最终提醒 %"
+                        Maximum="99"
+                        Minimum="3"
+                        SpinButtonPlacementMode="Compact"
+                        Value="95"
+                        Width="140" />
+                </StackPanel>
+                <Button
+                    x:Name="SaveSettingsButton"
+                    Grid.Row="5"
+                    Click="SaveSettingsButton_Click"
+                    Content="保存设置" />
             </Grid>
         </Grid>
     </NavigationView>

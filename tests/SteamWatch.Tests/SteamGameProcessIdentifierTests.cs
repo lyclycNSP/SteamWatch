@@ -56,6 +56,28 @@ public sealed class SteamGameProcessIdentifierTests
     }
 
     [TestMethod]
+    public void Identify_SteamLibraryPath_PrefersLongestGameNameMatch()
+    {
+        var processes = new[]
+        {
+            Process(10, 0, "steam.exe", "C:\\Steam\\steam.exe"),
+            Process(20, 10, "SlayTheSpire2.exe", "C:\\Steam\\steamapps\\common\\Slay the Spire 2\\SlayTheSpire2.exe")
+        };
+        var identifier = new SteamGameProcessIdentifier(
+            [
+                new SteamGameInfo(646570, "Slay the Spire", 0),
+                new SteamGameInfo(2868840, "Slay the Spire 2", 0)
+            ],
+            @"C:\Steam");
+
+        var games = identifier.Identify(processes);
+
+        Assert.HasCount(1, games);
+        Assert.AreEqual(2868840, games[0].AppId);
+        Assert.AreEqual("Slay the Spire 2", games[0].GameName);
+    }
+
+    [TestMethod]
     public void Identify_SteamHelperProcess_IsIgnored()
     {
         var processes = new[]
@@ -68,6 +90,24 @@ public sealed class SteamGameProcessIdentifierTests
         var games = identifier.Identify(processes);
 
         Assert.IsEmpty(games);
+    }
+
+    [TestMethod]
+    public void Identify_GameCrashpadHelper_IsIgnored()
+    {
+        var processes = new[]
+        {
+            Process(10, 0, "steam.exe", "C:\\Steam\\steam.exe"),
+            Process(20, 10, "SlayTheSpire2.exe", "C:\\Steam\\steamapps\\common\\Slay the Spire 2\\SlayTheSpire2.exe"),
+            Process(21, 20, "crashpad_handler.exe", "C:\\Steam\\steamapps\\common\\Slay the Spire 2\\crashpad_handler.exe")
+        };
+        var identifier = new SteamGameProcessIdentifier([new SteamGameInfo(2868840, "Slay the Spire 2", 0)], @"C:\Steam");
+
+        var games = identifier.Identify(processes);
+
+        Assert.HasCount(1, games);
+        Assert.AreEqual(2868840, games[0].AppId);
+        Assert.AreEqual(20, games[0].ProcessId);
     }
 
     [TestMethod]

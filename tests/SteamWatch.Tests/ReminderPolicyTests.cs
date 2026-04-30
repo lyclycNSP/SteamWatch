@@ -21,6 +21,17 @@ public sealed class ReminderPolicyTests
     }
 
     [TestMethod]
+    public void CalculateLevel_UsesCustomThresholds()
+    {
+        var policy = new ReminderPolicy(new ReminderThresholdSettings(50, 75, 90));
+
+        Assert.AreEqual(ReminderLevel.None, policy.CalculateLevel(0.49));
+        Assert.AreEqual(ReminderLevel.FirstWarning, policy.CalculateLevel(0.50));
+        Assert.AreEqual(ReminderLevel.SecondWarning, policy.CalculateLevel(0.75));
+        Assert.AreEqual(ReminderLevel.FinalWarning, policy.CalculateLevel(0.90));
+    }
+
+    [TestMethod]
     public void Evaluate_LevelIncrease_NotifiesImmediately()
     {
         var policy = new ReminderPolicy();

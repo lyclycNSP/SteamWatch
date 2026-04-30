@@ -89,6 +89,70 @@ public sealed class SteamCacheReaderTests
     }
 
     [TestMethod]
+    public void GetGameIconPath_UsesModernLibraryCacheDirectory()
+    {
+        var steamPath = CreateSteamFixture();
+        var iconDirectory = Path.Combine(steamPath, "appcache", "librarycache", "367520", "hash");
+        Directory.CreateDirectory(iconDirectory);
+        File.WriteAllText(Path.Combine(iconDirectory, "library_capsule.jpg"), "fake");
+
+        var iconPath = new SteamCacheReader(steamPath).GetGameIconPath(367520);
+
+        Assert.IsNotNull(iconPath);
+        Assert.EndsWith(Path.Combine("hash", "library_capsule.jpg"), iconPath);
+    }
+
+    [TestMethod]
+    public void GetGameIconPath_PrefersCapsuleArtworkOverLogo()
+    {
+        var steamPath = CreateSteamFixture();
+        var iconDirectory = Path.Combine(steamPath, "appcache", "librarycache", "367520");
+        Directory.CreateDirectory(iconDirectory);
+        File.WriteAllText(Path.Combine(iconDirectory, "logo.png"), "fake");
+        File.WriteAllText(Path.Combine(iconDirectory, "library_capsule.jpg"), "fake");
+
+        var iconPath = new SteamCacheReader(steamPath).GetGameIconPath(367520);
+
+        Assert.IsNotNull(iconPath);
+        Assert.EndsWith("library_capsule.jpg", iconPath);
+    }
+
+    [TestMethod]
+    public void GetGameIconPath_PrefersAppInfoClientIconOverLibraryArtwork()
+    {
+        const string iconHash = "29492c0a65a3d03943a8f4ab786c93a95a150a56";
+        var steamPath = CreateSteamFixture();
+        var iconDirectory = Path.Combine(steamPath, "steam", "games");
+        var libraryCacheDirectory = Path.Combine(steamPath, "appcache", "librarycache", "367520");
+        Directory.CreateDirectory(iconDirectory);
+        Directory.CreateDirectory(libraryCacheDirectory);
+        File.WriteAllText(Path.Combine(iconDirectory, $"{iconHash}.ico"), "fake");
+        File.WriteAllText(Path.Combine(libraryCacheDirectory, "library_capsule.jpg"), "fake");
+        WriteAppInfoFixture(steamPath, 367520, iconHash);
+
+        var iconPath = new SteamCacheReader(steamPath).GetGameIconPath(367520);
+
+        Assert.IsNotNull(iconPath);
+        Assert.EndsWith(Path.Combine("steam", "games", $"{iconHash}.ico"), iconPath);
+    }
+
+    [TestMethod]
+    public void GetGameIconPath_FallsBackToLibraryArtworkWhenAppInfoIconIsMissing()
+    {
+        const string iconHash = "29492c0a65a3d03943a8f4ab786c93a95a150a56";
+        var steamPath = CreateSteamFixture();
+        var libraryCacheDirectory = Path.Combine(steamPath, "appcache", "librarycache", "367520");
+        Directory.CreateDirectory(libraryCacheDirectory);
+        File.WriteAllText(Path.Combine(libraryCacheDirectory, "library_capsule.jpg"), "fake");
+        WriteAppInfoFixture(steamPath, 367520, iconHash);
+
+        var iconPath = new SteamCacheReader(steamPath).GetGameIconPath(367520);
+
+        Assert.IsNotNull(iconPath);
+        Assert.EndsWith("library_capsule.jpg", iconPath);
+    }
+
+    [TestMethod]
     public void GetCommonPaths_IncludesExpectedDefaultSteamPath()
     {
         CollectionAssert.Contains(
@@ -101,5 +165,56 @@ public sealed class SteamCacheReaderTests
         var path = Path.Combine(Path.GetTempPath(), "SteamWatch.Tests", Guid.NewGuid().ToString("N"), "Steam");
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    private static void WriteAppInfoFixture(string steamPath, int appId, string iconHash)
+    {
+        Directory.CreateDirectory(Path.Combine(steamPath, "appcache"));
+
+        const uint magicV29 = 0x07564429;
+        const uint universe = 1;
+        const uint clientIconIndex = 361;
+
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+        writer.Write(magicV29);
+        writer.Write(universe);
+        writer.Write(0U);
+        writer.Write(0U);
+
+        using var record = new MemoryStream();
+        using (var recordWriter = new BinaryWriter(record, System.Text.Encoding.UTF8, leaveOpen: true))
+        {
+            recordWriter.Write((byte)1);
+            recordWriter.Write(clientIconIndex);
+            recordWriter.Write(System.Text.Encoding.UTF8.GetBytes(iconHash));
+            recordWriter.Write((byte)0);
+        }
+
+        writer.Write(appId);
+        writer.Write((uint)record.Length);
+        writer.Write(record.ToArray());
+
+        var stringTableOffset = checked((uint)stream.Position);
+        stream.Position = sizeof(uint) * 2;
+        writer.Write(stringTableOffset);
+        stream.Position = stringTableOffset;
+
+        writer.Write(clientIconIndex + 1);
+        for (uint index = 0; index <= clientIconIndex; index++)
+        {
+            var key = index switch
+            {
+                0 => "appinfo",
+                1 => "appid",
+                4 => "name",
+                clientIconIndex => "clienticon",
+                _ => $"key{index}"
+            };
+            writer.Write(System.Text.Encoding.UTF8.GetBytes(key));
+            writer.Write((byte)0);
+        }
+
+        File.WriteAllBytes(Path.Combine(steamPath, "appcache", "appinfo.vdf"), stream.ToArray());
     }
 }

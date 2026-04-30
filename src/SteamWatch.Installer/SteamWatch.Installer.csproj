@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>SteamWatch.Installer</RootNamespace>
+    <AssemblyName>SteamWatchSetup</AssemblyName>
+    <ApplicationIcon>..\SteamWatch.App\Assets\AppIcon.ico</ApplicationIcon>
+    <Win32Icon>..\SteamWatch.App\Assets\AppIcon.ico</Win32Icon>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PayloadZip>..\..\dist\SteamWatch-win-x64.zip</PayloadZip>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="..\SteamWatch.App\Assets\AppIcon.ico" Link="AppIcon.ico" />
+    <EmbeddedResource
+      Condition="Exists('$(PayloadZip)')"
+      Include="$(PayloadZip)"
+      LogicalName="SteamWatchPayload.zip" />
+  </ItemGroup>
+
+  <Target Name="RequirePayloadZip" BeforeTargets="BeforeBuild" Condition="'$(RequireInstallerPayload)' == 'true' and !Exists('$(PayloadZip)')">
+    <Error Text="Installer payload was not found: $(PayloadZip). Run scripts\publish-portable.ps1 first." />
+  </Target>
+</Project>

@@ -1,10 +1,11 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/SteamWatch.App/SteamWatch.App.csproj">
-      <Platform Project="x86" />
+      <Platform Project="x64" />
     </Project>
     <Project Path="src/SteamWatch.Core/SteamWatch.Core.csproj" />
     <Project Path="src/SteamWatch.Infrastructure/SteamWatch.Infrastructure.csproj" />
+    <Project Path="src/SteamWatch.Installer/SteamWatch.Installer.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SteamWatch.Tests/SteamWatch.Tests.csproj" />

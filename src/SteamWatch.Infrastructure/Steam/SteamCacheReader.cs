@@ -5,6 +5,7 @@ namespace SteamWatch.Infrastructure.Steam;
 public sealed class SteamCacheReader
 {
     private readonly SteamManifestParser _parser;
+    private IReadOnlyDictionary<int, string>? _clientIconHashes;
 
     public SteamCacheReader(string steamPath, SteamManifestParser? parser = null)
     {
@@ -86,6 +87,12 @@ public sealed class SteamCacheReader
 
     public string? GetGameIconPath(int appId)
     {
+        var appInfoIconPath = GetAppInfoIconPath(appId);
+        if (appInfoIconPath is not null)
+        {
+            return appInfoIconPath;
+        }
+
         var libraryCache = Path.Combine(SteamPath, "appcache", "librarycache");
         if (!Directory.Exists(libraryCache))
         {
@@ -101,7 +108,61 @@ public sealed class SteamCacheReader
             }
         }
 
-        return null;
+        var appCacheDirectory = Path.Combine(libraryCache, appId.ToString());
+        return Directory.Exists(appCacheDirectory)
+            ? FindBestLibraryCacheImage(appCacheDirectory)
+            : null;
+    }
+
+    private string? GetAppInfoIconPath(int appId)
+    {
+        var iconHashes = _clientIconHashes ??= SteamAppInfoIconReader.ReadClientIconHashes(
+            Path.Combine(SteamPath, "appcache", "appinfo.vdf"));
+        if (!iconHashes.TryGetValue(appId, out var iconHash))
+        {
+            return null;
+        }
+
+        var iconPath = Path.Combine(SteamPath, "steam", "games", $"{iconHash}.ico");
+        return File.Exists(iconPath) ? iconPath : null;
+    }
+
+    private static string? FindBestLibraryCacheImage(string appCacheDirectory)
+    {
+        var preferredNames = new[]
+        {
+            "library_capsule.jpg",
+            "library_header.jpg",
+            "library_header_schinese.jpg",
+            "header.jpg",
+            "header_schinese.jpg",
+            "library_600x900.jpg",
+            "library_600x900_schinese.jpg",
+            "logo.png",
+            "logo_schinese.png"
+        };
+
+        foreach (var fileName in preferredNames)
+        {
+            var directPath = Path.Combine(appCacheDirectory, fileName);
+            if (File.Exists(directPath))
+            {
+                return directPath;
+            }
+
+            var nestedPath = Directory
+                .EnumerateFiles(appCacheDirectory, fileName, SearchOption.AllDirectories)
+                .FirstOrDefault();
+            if (nestedPath is not null)
+            {
+                return nestedPath;
+            }
+        }
+
+        return Directory
+            .EnumerateFiles(appCacheDirectory, "*.png", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(appCacheDirectory, "*.jpg", SearchOption.AllDirectories))
+            .FirstOrDefault();
     }
 
     private async Task<IReadOnlyDictionary<int, int>> ReadPlaytimesAsync(
