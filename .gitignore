@@ -15,3 +15,8 @@ exports/
 artifacts/
 dist/
 publish/
+
+# Local planning board files
+PLAN.md
+SPEC.md
+STATUS.md
