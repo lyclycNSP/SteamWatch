@@ -250,6 +250,21 @@ public sealed class SteamWatchAppService
         return _limitRules;
     }
 
+    public async Task<IReadOnlyList<LimitRule>> ReplaceLimitRuleAsync(
+        LimitRule oldRule,
+        LimitRule newRule,
+        CancellationToken cancellationToken = default)
+    {
+        var rules = _limitRules
+            .Where(existing => !IsSameRuleTarget(existing, oldRule) && !IsSameRuleTarget(existing, newRule))
+            .Append(newRule)
+            .ToList();
+
+        await _limitRuleStore.SaveAsync(rules, cancellationToken).ConfigureAwait(false);
+        _limitRules = rules;
+        return _limitRules;
+    }
+
     public IReadOnlyList<PlaytimeStatRowViewModel> GetDailyStats()
     {
         return _playtimeRecords.Records
@@ -260,7 +275,8 @@ public sealed class SteamWatchAppService
                     record.Date.ToString("yyyy-MM-dd"),
                     item.Key,
                     ResolveGameName(item.Key),
-                    item.Value)))
+                    item.Value,
+                    ResolveGameIconPath(item.Key))))
             .ToList();
     }
 
@@ -278,7 +294,8 @@ public sealed class SteamWatchAppService
                 $"{group.Key.WeekStart:yyyy-MM-dd} - {WeekCalculator.GetWeekEnd(group.Key.WeekStart):yyyy-MM-dd}",
                 group.Key.AppId,
                 ResolveGameName(group.Key.AppId),
-                group.Sum(item => item.Minutes)))
+                group.Sum(item => item.Minutes),
+                ResolveGameIconPath(group.Key.AppId)))
             .OrderByDescending(row => row.PeriodText)
             .ThenByDescending(row => row.Minutes)
             .ToList();
@@ -299,6 +316,13 @@ public sealed class SteamWatchAppService
         return _games.TryGetValue(appId, out var row)
             ? row.Name
             : $"AppID {appId}";
+    }
+
+    private string? ResolveGameIconPath(int appId)
+    {
+        return _games.TryGetValue(appId, out var row)
+            ? row.IconPath
+            : null;
     }
 
     private async Task AddPlaytimeIncrementAsync(

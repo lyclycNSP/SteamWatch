@@ -277,10 +277,16 @@
                                     Padding="0,10"
                                     ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="40" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel>
+                                    <Image
+                                        Width="32"
+                                        Height="32"
+                                        VerticalAlignment="Top"
+                                        Source="{x:Bind IconSource}" />
+                                    <StackPanel Grid.Column="1">
                                         <TextBlock
                                             FontWeight="SemiBold"
                                             Text="{x:Bind GameName}" />
@@ -292,7 +298,7 @@
                                             Text="{x:Bind AppIdText}" />
                                     </StackPanel>
                                     <TextBlock
-                                        Grid.Column="1"
+                                        Grid.Column="2"
                                         HorizontalAlignment="Right"
                                         Text="{x:Bind MinutesText}" />
                                 </Grid>
@@ -321,10 +327,16 @@
                                     Padding="0,10"
                                     ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="40" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel>
+                                    <Image
+                                        Width="32"
+                                        Height="32"
+                                        VerticalAlignment="Top"
+                                        Source="{x:Bind IconSource}" />
+                                    <StackPanel Grid.Column="1">
                                         <TextBlock
                                             FontWeight="SemiBold"
                                             Text="{x:Bind GameName}" />
@@ -336,7 +348,7 @@
                                             Text="{x:Bind AppIdText}" />
                                     </StackPanel>
                                     <TextBlock
-                                        Grid.Column="1"
+                                        Grid.Column="2"
                                         HorizontalAlignment="Right"
                                         Text="{x:Bind MinutesText}" />
                                 </Grid>

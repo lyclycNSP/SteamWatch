@@ -22,6 +22,7 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
     private bool _isRefreshingRuntimeStatus;
     private bool _isMonitoringPaused;
     private bool _isShowingNotificationDialog;
+    private bool _isApplyingLimitRuleSelection;
     private LimitRule? _selectedLimitRule;
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -251,6 +252,11 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
 
     private void GamesListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_isApplyingLimitRuleSelection)
+        {
+            return;
+        }
+
         if (_selectedLimitRule is null)
         {
             return;
@@ -270,8 +276,10 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         }
 
         _selectedLimitRule = rule;
+        ApplyLimitRuleToForm(rule);
+        SaveLimitButton.Content = "更新规则";
         DeleteLimitRuleButton.IsEnabled = true;
-        StatusMessage = "已选中规则，可点击删除规则；点击左侧游戏列表会切换为新建规则。";
+        StatusMessage = "已选中规则，可修改限额分钟或超限策略后保存；点击左侧游戏列表会切换为新建规则。";
     }
 
     private async void DeleteLimitRuleButton_Click(object sender, RoutedEventArgs e)
@@ -392,11 +400,14 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
 
         try
         {
-            var rules = await _appService.UpsertLimitRuleAsync(rule);
+            var selectedRule = _selectedLimitRule;
+            var rules = selectedRule is null
+                ? await _appService.UpsertLimitRuleAsync(rule)
+                : await _appService.ReplaceLimitRuleAsync(selectedRule, rule);
             ReplaceLimitRows(rules);
             LimitRulesListView.SelectedItem = null;
             ClearSelectedLimitRule();
-            StatusMessage = "限额规则已保存。";
+            StatusMessage = selectedRule is null ? "限额规则已保存。" : "限额规则已更新。";
         }
         catch (Exception ex)
         {
@@ -504,6 +515,27 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         _selectedLimitRule = null;
         SaveLimitButton.Content = "保存限额";
         DeleteLimitRuleButton.IsEnabled = false;
+    }
+
+    private void ApplyLimitRuleToForm(LimitRule rule)
+    {
+        _isApplyingLimitRuleSelection = true;
+        try
+        {
+            LimitScopeComboBox.SelectedIndex = rule.Scope == LimitScope.Game ? 1 : 0;
+            LimitPeriodComboBox.SelectedIndex = rule.Period == LimitPeriod.Week ? 1 : 0;
+            LimitMinutesNumberBox.Value = rule.MaxMinutes;
+            LimitEnforcementComboBox.SelectedIndex = rule.Enforcement == EnforcementMode.ForceClose ? 1 : 0;
+
+            if (rule.Scope == LimitScope.Game && rule.AppId is int appId)
+            {
+                GamesListView.SelectedItem = GameRows.FirstOrDefault(game => game.AppId == appId);
+            }
+        }
+        finally
+        {
+            _isApplyingLimitRuleSelection = false;
+        }
     }
 
     private void ApplySettings(AppSettings settings)
