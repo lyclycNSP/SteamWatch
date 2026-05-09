@@ -48,10 +48,10 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var settings = LoadSettings();
-        if (settings.CloseWindowAction == CloseWindowAction.ExitApplication)
+        if (GetCloseWindowAction() == CloseWindowAction.ExitApplication)
         {
-            _isExiting = true;
+            args.Cancel = true;
+            _ = RequestExitAsync();
             return;
         }
 
@@ -96,13 +96,49 @@ public sealed partial class MainWindow : Window
 
     private void ExitFromTray()
     {
+        _ = RequestExitAsync();
+    }
+
+    private async Task RequestExitAsync()
+    {
+        ShowWindow();
+        if (!await AuthorizeExitAsync())
+        {
+            return;
+        }
+
         _isExiting = true;
         _trayIcon.Dispose();
         App.ExitApplication();
     }
 
+    private async Task<bool> AuthorizeExitAsync()
+    {
+        if (RootFrame.Content is MainPage page)
+        {
+            return await page.AuthorizeSensitiveActionAsync("退出 SteamWatch");
+        }
+
+        return true;
+    }
+
+    private CloseWindowAction GetCloseWindowAction()
+    {
+        if (RootFrame.Content is MainPage page)
+        {
+            return page.GetCurrentCloseWindowAction();
+        }
+
+        return LoadSettings().CloseWindowAction;
+    }
+
     private AppSettings LoadSettings()
     {
+        if (RootFrame.Content is MainPage page)
+        {
+            return page.GetCurrentSettings();
+        }
+
         try
         {
             return _settingsStore.LoadAsync().GetAwaiter().GetResult();

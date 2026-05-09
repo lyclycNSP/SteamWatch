@@ -2,6 +2,7 @@ using SteamWatch.Core.Enforcement;
 using SteamWatch.Core.Limits;
 using SteamWatch.Core.Notifications;
 using SteamWatch.Core.Reminders;
+using SteamWatch.Core.Security;
 using SteamWatch.Core.Settings;
 using SteamWatch.Core.Steam;
 using SteamWatch.Core.Tracking;
@@ -17,6 +18,7 @@ public sealed class SteamWatchAppService
 {
     private readonly SteamPathResolver _pathResolver;
     private readonly PlaytimeRecordStore _playtimeStore;
+    private readonly SteamPlaytimeSnapshotStore _steamPlaytimeSnapshotStore;
     private readonly LimitRuleStore _limitRuleStore;
     private readonly AppSettingsStore _settingsStore;
     private readonly IStartupManager _startupManager;
@@ -29,6 +31,7 @@ public sealed class SteamWatchAppService
     private IReadOnlyList<LimitRule> _limitRules = [];
     private AppSettings _settings = new();
     private PlaytimeRecordBook _playtimeRecords = new();
+    private SteamPlaytimeSnapshot? _steamPlaytimeSnapshot;
     private SteamProcessMonitor? _monitor;
     private string? _steamPath;
 
@@ -37,6 +40,7 @@ public sealed class SteamWatchAppService
     public SteamWatchAppService(
         SteamPathResolver? pathResolver = null,
         PlaytimeRecordStore? playtimeStore = null,
+        SteamPlaytimeSnapshotStore? steamPlaytimeSnapshotStore = null,
         LimitRuleStore? limitRuleStore = null,
         AppSettingsStore? settingsStore = null,
         IStartupManager? startupManager = null,
@@ -47,6 +51,7 @@ public sealed class SteamWatchAppService
         var defaultStore = new JsonFileStore(Path.Combine(AppContext.BaseDirectory, "data"));
         _playtimeStore = playtimeStore ?? new PlaytimeRecordStore(
             defaultStore);
+        _steamPlaytimeSnapshotStore = steamPlaytimeSnapshotStore ?? new SteamPlaytimeSnapshotStore(defaultStore);
         _limitRuleStore = limitRuleStore ?? new LimitRuleStore(defaultStore);
         _settingsStore = settingsStore ?? new AppSettingsStore(defaultStore);
         _startupManager = startupManager ?? new WindowsStartupManager(new WindowsStartupRegistry());
@@ -66,6 +71,11 @@ public sealed class SteamWatchAppService
         _settings = await _settingsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
         ApplyRuntimeSettings(_settings);
         var today = DateOnly.FromDateTime(DateTimeOffset.Now.LocalDateTime);
+        var offlineMinutes = await ReconcileSteamPlaytimeSnapshotAsync(
+            games,
+            today,
+            DateTimeOffset.Now,
+            cancellationToken).ConfigureAwait(false);
 
         var rows = games
             .Select(game => new GameRowViewModel(
@@ -91,6 +101,10 @@ public sealed class SteamWatchAppService
         var status = userId is null
             ? $"已找到 Steam：{steamPath}，但未找到当前用户"
             : $"已找到 Steam：{steamPath}，用户 {userId}，游戏 {rows.Count} 个";
+        if (offlineMinutes > 0)
+        {
+            status = $"{status}。已补记未开启 SteamWatch 时的 Steam 累计时长 {offlineMinutes} 分钟";
+        }
 
         return new GameListSnapshot(steamPath, userId, status, rows);
     }
@@ -189,6 +203,17 @@ public sealed class SteamWatchAppService
         return _settings;
     }
 
+    public bool IsAuthenticationRequired()
+    {
+        return _settings.RequireAuthenticationForSensitiveActions
+            && _settings.AuthenticationCredential is not null;
+    }
+
+    public bool VerifyAuthentication(string password)
+    {
+        return PasswordHasher.Verify(password, _settings.AuthenticationCredential);
+    }
+
     public async Task<AppSettings> LoadSettingsAsync(CancellationToken cancellationToken = default)
     {
         _settings = await _settingsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
@@ -280,6 +305,26 @@ public sealed class SteamWatchAppService
             .ToList();
     }
 
+    public IReadOnlyList<PlaytimeStatRowViewModel> GetDailyStats(DateOnly date)
+    {
+        var record = _playtimeRecords.Records.FirstOrDefault(item => item.Date == date);
+        if (record is null)
+        {
+            return [];
+        }
+
+        return record.GameMinutes
+            .OrderByDescending(item => item.Value)
+            .ThenBy(item => ResolveGameName(item.Key), StringComparer.CurrentCultureIgnoreCase)
+            .Select(item => new PlaytimeStatRowViewModel(
+                date.ToString("yyyy-MM-dd"),
+                item.Key,
+                ResolveGameName(item.Key),
+                item.Value,
+                ResolveGameIconPath(item.Key)))
+            .ToList();
+    }
+
     public IReadOnlyList<PlaytimeStatRowViewModel> GetWeeklyStats()
     {
         return _playtimeRecords.Records
@@ -298,6 +343,30 @@ public sealed class SteamWatchAppService
                 ResolveGameIconPath(group.Key.AppId)))
             .OrderByDescending(row => row.PeriodText)
             .ThenByDescending(row => row.Minutes)
+            .ToList();
+    }
+
+    public IReadOnlyList<PlaytimeStatRowViewModel> GetWeeklyStats(DateOnly weekStart)
+    {
+        var normalizedWeekStart = WeekCalculator.GetWeekStart(weekStart);
+        var weekEnd = WeekCalculator.GetWeekEnd(normalizedWeekStart);
+
+        return _playtimeRecords.Records
+            .Where(record => record.Date >= normalizedWeekStart && record.Date <= weekEnd)
+            .SelectMany(record => record.GameMinutes.Select(item => new
+            {
+                AppId = item.Key,
+                Minutes = item.Value
+            }))
+            .GroupBy(item => item.AppId)
+            .Select(group => new PlaytimeStatRowViewModel(
+                $"{normalizedWeekStart:yyyy-MM-dd} - {weekEnd:yyyy-MM-dd}",
+                group.Key,
+                ResolveGameName(group.Key),
+                group.Sum(item => item.Minutes),
+                ResolveGameIconPath(group.Key)))
+            .OrderByDescending(row => row.Minutes)
+            .ThenBy(row => row.GameName, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
     }
 
@@ -337,6 +406,93 @@ public sealed class SteamWatchAppService
 
         _playtimeRecords.Add(date, increment);
         await _playtimeStore.SaveAsync(_playtimeRecords, cancellationToken).ConfigureAwait(false);
+        await AddSteamSnapshotIncrementAsync(increment, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<int> ReconcileSteamPlaytimeSnapshotAsync(
+        IReadOnlyList<SteamGameInfo> games,
+        DateOnly date,
+        DateTimeOffset observedAt,
+        CancellationToken cancellationToken)
+    {
+        var previous = await _steamPlaytimeSnapshotStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var current = CreateSteamPlaytimeSnapshot(games, observedAt);
+        var offlineMinutes = 0;
+
+        if (previous is not null)
+        {
+            var previousByAppId = previous.Games.ToDictionary(game => game.AppId);
+            foreach (var game in current.Games)
+            {
+                if (!previousByAppId.TryGetValue(game.AppId, out var oldGame))
+                {
+                    continue;
+                }
+
+                var delta = game.PlaytimeForeverMinutes - oldGame.PlaytimeForeverMinutes;
+                if (delta <= 0)
+                {
+                    continue;
+                }
+
+                _playtimeRecords.Add(date, new PlaytimeIncrement(game.AppId, game.Name, delta, false));
+                offlineMinutes += delta;
+            }
+
+            if (offlineMinutes > 0)
+            {
+                await _playtimeStore.SaveAsync(_playtimeRecords, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        _steamPlaytimeSnapshot = current;
+        await _steamPlaytimeSnapshotStore.SaveAsync(current, cancellationToken).ConfigureAwait(false);
+        return offlineMinutes;
+    }
+
+    private async Task AddSteamSnapshotIncrementAsync(
+        PlaytimeIncrement increment,
+        CancellationToken cancellationToken)
+    {
+        if (_steamPlaytimeSnapshot is null || increment.Minutes <= 0)
+        {
+            return;
+        }
+
+        var games = _steamPlaytimeSnapshot.Games
+            .Where(game => game.AppId != increment.AppId)
+            .Append(new SteamPlaytimeSnapshotGame(
+                increment.AppId,
+                increment.GameName,
+                GetSnapshotMinutes(increment.AppId) + increment.Minutes))
+            .OrderBy(game => game.AppId)
+            .ToList();
+
+        _steamPlaytimeSnapshot = new SteamPlaytimeSnapshot(DateTimeOffset.Now, games);
+        await _steamPlaytimeSnapshotStore.SaveAsync(_steamPlaytimeSnapshot, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static SteamPlaytimeSnapshot CreateSteamPlaytimeSnapshot(
+        IReadOnlyList<SteamGameInfo> games,
+        DateTimeOffset observedAt)
+    {
+        return new SteamPlaytimeSnapshot(
+            observedAt,
+            games
+                .Where(game => game.AppId > 0 && game.PlaytimeForeverMinutes >= 0)
+                .Select(game => new SteamPlaytimeSnapshotGame(
+                    game.AppId,
+                    game.Name,
+                    game.PlaytimeForeverMinutes))
+            .OrderBy(game => game.AppId)
+            .ToList());
+    }
+
+    private int GetSnapshotMinutes(int appId)
+    {
+        return _steamPlaytimeSnapshot?.Games
+            .FirstOrDefault(game => game.AppId == appId)?
+            .PlaytimeForeverMinutes ?? 0;
     }
 
     private void ShowReminderNotifications(RuntimeLimitCheckResult limitResult)

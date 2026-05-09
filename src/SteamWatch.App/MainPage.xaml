@@ -29,6 +29,11 @@
                 Content="统计"
                 Icon="Calendar"
                 Tag="Statistics" />
+            <NavigationViewItem
+                x:Name="HelpNavigationItem"
+                Content="帮助"
+                Icon="Help"
+                Tag="Help" />
         </NavigationView.MenuItems>
 
         <Grid Padding="24">
@@ -262,14 +267,29 @@
                 <Grid RowSpacing="12">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBlock
-                        FontSize="18"
-                        FontWeight="SemiBold"
-                        Text="每日明细" />
-                    <ListView
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="每日明细" />
+                        <TextBlock
+                            x:Name="DailyStatsTotalText"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="当天总时长 0 分钟" />
+                    </StackPanel>
+                    <CalendarDatePicker
+                        x:Name="DailyStatsDatePicker"
                         Grid.Row="1"
+                        Header="选择日期"
+                        Width="180"
+                        HorizontalAlignment="Left"
+                        DateFormat="{}{year.full}-{month.integer(2)}-{day.integer(2)}"
+                        DateChanged="DailyStatsDatePicker_DateChanged" />
+                    <ListView
+                        Grid.Row="2"
                         ItemsSource="{x:Bind DailyStatRows}">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="local:PlaytimeStatRowViewModel">
@@ -312,14 +332,29 @@
                     RowSpacing="12">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBlock
-                        FontSize="18"
-                        FontWeight="SemiBold"
-                        Text="每周汇总" />
-                    <ListView
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="每周汇总" />
+                        <TextBlock
+                            x:Name="WeeklyStatsTotalText"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="本周总时长 0 分钟" />
+                    </StackPanel>
+                    <CalendarDatePicker
+                        x:Name="WeeklyStatsDatePicker"
                         Grid.Row="1"
+                        Header="选择周内日期"
+                        Width="180"
+                        HorizontalAlignment="Left"
+                        DateFormat="{}{year.full}-{month.integer(2)}-{day.integer(2)}"
+                        DateChanged="WeeklyStatsDatePicker_DateChanged" />
+                    <ListView
+                        Grid.Row="2"
                         ItemsSource="{x:Bind WeeklyStatRows}">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="local:PlaytimeStatRowViewModel">
@@ -358,85 +393,343 @@
                 </Grid>
             </Grid>
 
-            <Grid
+            <ScrollViewer
                 x:Name="SettingsView"
                 Grid.Row="2"
-                RowSpacing="16"
                 Visibility="Collapsed">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <ToggleSwitch
-                    x:Name="StartWithWindowsSwitch"
-                    Header="开机自启"
-                    OffContent="关闭"
-                    OnContent="开启" />
-                <ComboBox
-                    x:Name="CloseWindowActionComboBox"
-                    Grid.Row="1"
-                    Header="关闭窗口时"
-                    SelectedIndex="0">
-                    <ComboBoxItem Content="最小化到托盘" />
-                    <ComboBoxItem Content="退出应用" />
-                </ComboBox>
-                <ToggleSwitch
-                    x:Name="PlayReminderSoundsSwitch"
-                    Grid.Row="2"
-                    Header="默认启用声音提醒"
-                    IsOn="True"
-                    OffContent="关闭"
-                    OnContent="开启" />
-                <NumberBox
-                    x:Name="ForceCloseCountdownNumberBox"
-                    Grid.Row="3"
-                    Header="强退倒计时秒数"
-                    LargeChange="30"
-                    Maximum="600"
-                    Minimum="5"
-                    SmallChange="5"
-                    SpinButtonPlacementMode="Compact"
-                    Value="60" />
                 <StackPanel
-                    Grid.Row="4"
-                    Orientation="Horizontal"
-                    Spacing="12">
-                    <NumberBox
-                        x:Name="FirstReminderThresholdNumberBox"
-                        Header="一级提醒 %"
-                        Maximum="99"
-                        Minimum="1"
-                        SpinButtonPlacementMode="Compact"
-                        Value="70"
-                        Width="140" />
-                    <NumberBox
-                        x:Name="SecondReminderThresholdNumberBox"
-                        Header="二级提醒 %"
-                        Maximum="99"
-                        Minimum="2"
-                        SpinButtonPlacementMode="Compact"
-                        Value="85"
-                        Width="140" />
-                    <NumberBox
-                        x:Name="FinalReminderThresholdNumberBox"
-                        Header="最终提醒 %"
-                        Maximum="99"
-                        Minimum="3"
-                        SpinButtonPlacementMode="Compact"
-                        Value="95"
-                        Width="140" />
+                    HorizontalAlignment="Left"
+                    Width="760"
+                    Spacing="16">
+                    <InfoBar
+                        x:Name="SettingsInfoBar"
+                        IsOpen="False"
+                        Severity="Informational" />
+
+                    <StackPanel
+                        x:Name="SettingsRootPanel"
+                        Spacing="8">
+                        <Button
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            Click="SettingsSectionButton_Click"
+                            Tag="General">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock
+                                        FontSize="17"
+                                        FontWeight="SemiBold"
+                                        Text="常规" />
+                                    <TextBlock
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="开机自启、关闭窗口行为、声音提醒。更改后立即生效。"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <SymbolIcon
+                                    Grid.Column="1"
+                                    Symbol="Forward" />
+                            </Grid>
+                        </Button>
+                        <Button
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            Click="SettingsSectionButton_Click"
+                            Tag="Reminder">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock
+                                        FontSize="17"
+                                        FontWeight="SemiBold"
+                                        Text="提醒和强退" />
+                                    <TextBlock
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="强退倒计时和提醒阈值。修改后需要保存。"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <SymbolIcon
+                                    Grid.Column="1"
+                                    Symbol="Forward" />
+                            </Grid>
+                        </Button>
+                        <Button
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            Click="SettingsSectionButton_Click"
+                            Tag="Authentication">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock
+                                        FontSize="17"
+                                        FontWeight="SemiBold"
+                                        Text="认证保护" />
+                                    <TextBlock
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="设置或关闭密码保护。修改后需要保存。"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <SymbolIcon
+                                    Grid.Column="1"
+                                    Symbol="Forward" />
+                            </Grid>
+                        </Button>
+                        <Button
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            Click="SettingsSectionButton_Click"
+                            Tag="Maintenance">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock
+                                        FontSize="17"
+                                        FontWeight="SemiBold"
+                                        Text="应用维护" />
+                                    <TextBlock
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        Text="卸载 SteamWatch。"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <SymbolIcon
+                                    Grid.Column="1"
+                                    Symbol="Forward" />
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel
+                        x:Name="GeneralSettingsPanel"
+                        Spacing="12"
+                        Visibility="Collapsed">
+                        <Button
+                            Click="SettingsBackButton_Click"
+                            Content="返回设置" />
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="常规" />
+                        <TextBlock
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="这些设置修改后立即保存并生效，不需要点击保存按钮。"
+                            TextWrapping="Wrap" />
+                        <ToggleSwitch
+                            x:Name="StartWithWindowsSwitch"
+                            Header="开机自启"
+                            OffContent="关闭"
+                            OnContent="开启"
+                            Toggled="ImmediateSettingsSwitch_Toggled" />
+                        <ComboBox
+                            x:Name="CloseWindowActionComboBox"
+                            Header="关闭窗口时"
+                            SelectedIndex="0"
+                            SelectionChanged="ImmediateSettingsComboBox_SelectionChanged">
+                            <ComboBoxItem Content="最小化到托盘" />
+                            <ComboBoxItem Content="退出应用" />
+                        </ComboBox>
+                        <ToggleSwitch
+                            x:Name="PlayReminderSoundsSwitch"
+                            Header="默认启用声音提醒"
+                            IsOn="True"
+                            OffContent="关闭"
+                            OnContent="开启"
+                            Toggled="ImmediateSettingsSwitch_Toggled" />
+                    </StackPanel>
+
+                    <StackPanel
+                        x:Name="ReminderSettingsPanel"
+                        Spacing="12"
+                        Visibility="Collapsed">
+                        <Button
+                            Click="SettingsBackButton_Click"
+                            Content="返回设置" />
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="提醒和强退" />
+                        <NumberBox
+                            x:Name="ForceCloseCountdownNumberBox"
+                            Header="强退倒计时秒数"
+                            LargeChange="30"
+                            Maximum="600"
+                            Minimum="5"
+                            SmallChange="5"
+                            SpinButtonPlacementMode="Compact"
+                            Value="60" />
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="12">
+                            <NumberBox
+                                x:Name="FirstReminderThresholdNumberBox"
+                                Header="一级提醒 %"
+                                Maximum="99"
+                                Minimum="1"
+                                SpinButtonPlacementMode="Compact"
+                                Value="70"
+                                Width="140" />
+                            <NumberBox
+                                x:Name="SecondReminderThresholdNumberBox"
+                                Header="二级提醒 %"
+                                Maximum="99"
+                                Minimum="2"
+                                SpinButtonPlacementMode="Compact"
+                                Value="85"
+                                Width="140" />
+                            <NumberBox
+                                x:Name="FinalReminderThresholdNumberBox"
+                                Header="最终提醒 %"
+                                Maximum="99"
+                                Minimum="3"
+                                SpinButtonPlacementMode="Compact"
+                                Value="95"
+                                Width="140" />
+                        </StackPanel>
+                        <Button
+                            Click="SaveSettingsButton_Click"
+                            Content="保存设置" />
+                    </StackPanel>
+
+                    <StackPanel
+                        x:Name="AuthenticationSettingsPanel"
+                        Spacing="12"
+                        Visibility="Collapsed">
+                        <Button
+                            Click="SettingsBackButton_Click"
+                            Content="返回设置" />
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="认证保护" />
+                        <TextBlock
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="开启后，保存或删除限额规则、保存设置、退出 SteamWatch 都需要输入密码。关闭或修改认证保护前，也需要先输入当前密码；修改后点击保存设置生效。"
+                            TextWrapping="Wrap" />
+                        <ToggleSwitch
+                            x:Name="RequireAuthenticationSwitch"
+                            Header="修改规则和退出时需要密码"
+                            OffContent="关闭"
+                            OnContent="开启" />
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="12">
+                            <PasswordBox
+                                x:Name="AuthenticationPasswordBox"
+                                Header="认证密码"
+                                PlaceholderText="留空则保留当前密码"
+                                Width="220" />
+                            <PasswordBox
+                                x:Name="ConfirmAuthenticationPasswordBox"
+                                Header="确认密码"
+                                Width="220" />
+                        </StackPanel>
+                        <Button
+                            Click="SaveSettingsButton_Click"
+                            Content="保存设置" />
+                    </StackPanel>
+
+                    <StackPanel
+                        x:Name="MaintenanceSettingsPanel"
+                        Spacing="12"
+                        Visibility="Collapsed">
+                        <Button
+                            Click="SettingsBackButton_Click"
+                            Content="返回设置" />
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Text="应用维护" />
+                        <Button
+                            x:Name="UninstallButton"
+                            Click="UninstallButton_Click"
+                            Content="卸载 SteamWatch" />
+                    </StackPanel>
                 </StackPanel>
-                <Button
-                    x:Name="SaveSettingsButton"
-                    Grid.Row="5"
-                    Click="SaveSettingsButton_Click"
-                    Content="保存设置" />
-            </Grid>
+            </ScrollViewer>
+
+            <ScrollViewer
+                x:Name="HelpView"
+                Grid.Row="2"
+                Visibility="Collapsed">
+                <StackPanel
+                    HorizontalAlignment="Left"
+                    Width="760"
+                    Spacing="12">
+                    <InfoBar
+                        IsOpen="True"
+                        Severity="Informational"
+                        Title="建议先确认通知和认证保护设置"
+                        Message="全屏游戏可能触发 Windows 勿扰模式；如果需要约束自己修改规则或退出程序，可以在设置中开启认证保护。" />
+
+                    <Expander
+                        HorizontalAlignment="Stretch"
+                        Header="启动程序"
+                        IsExpanded="True">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="安装器版：运行 SteamWatchSetup-win-x64.exe，安装完成后从桌面或开始菜单启动 SteamWatch。" TextWrapping="Wrap" />
+                            <TextBlock Text="绿色版：解压 SteamWatch-win-x64.zip，进入 SteamWatch-win-x64 文件夹，运行 SteamWatch.exe。不要删除同目录下的 .dll、.json、Assets、runtimes 等文件。" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander
+                        HorizontalAlignment="Stretch"
+                        Header="运行数据和离线补记">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="程序会在安装目录或绿色版目录下的 data 文件夹保存设置、限额规则和游玩记录。迁移绿色版时，可以一并复制 data 文件夹。" TextWrapping="Wrap" />
+                            <TextBlock Text="SteamWatch 运行时会按分钟记录游玩时间。未开启 SteamWatch 期间的游玩时间会在下次启动时根据 Steam 累计时长差值补记到当天；如果跨天游玩后才启动，Steam 本地缓存无法提供精确日期，补记不会拆分到历史日期。" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander
+                        HorizontalAlignment="Stretch"
+                        Header="通知提醒和勿扰模式">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="SteamWatch 支持系统通知、程序内弹窗和声音提醒。如果全屏游戏时收不到系统通知，通常是 Windows 自动开启了勿扰模式。" TextWrapping="Wrap" />
+                            <TextBlock Text="关闭勿扰模式：按 Win + I 打开设置，进入 系统 -> 通知，确保顶部勿扰模式关闭；展开 自动打开勿扰模式，取消勾选 玩游戏时 和 在全屏模式下使用应用时。" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander
+                        HorizontalAlignment="Stretch"
+                        Header="托盘和退出">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="程序运行后会显示托盘图标。可以在设置中选择关闭窗口时最小化到托盘或退出程序。托盘右键菜单可以打开窗口、暂停/恢复监控、进入设置或退出程序。" TextWrapping="Wrap" />
+                            <TextBlock Text="如果开启“修改规则和退出时需要密码”，退出程序前需要输入认证密码。" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander
+                        HorizontalAlignment="Stretch"
+                        Header="游戏限额">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="在游戏监控界面选择游戏后，可以为单个游戏设置每日或每周限额，也可以设置作用于所有 Steam 游戏的全局限额。" TextWrapping="Wrap" />
+                            <TextBlock Text="仅提醒会发送通知、弹窗和声音提醒；强制退出会在倒计时后尝试关闭对应游戏进程。开启认证保护后，保存、更新或删除限额规则都需要输入密码。" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander
+                        HorizontalAlignment="Stretch"
+                        Header="认证保护">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="可以在设置中开启“修改规则和退出时需要密码”，并设置认证密码。密码不会明文保存，程序只保存带盐哈希。" TextWrapping="Wrap" />
+                            <TextBlock Text="安装器版默认保存在 %LOCALAPPDATA%\Programs\SteamWatch\data\settings.json；绿色版保存在 SteamWatch.exe 同目录的 data\settings.json。" TextWrapping="Wrap" />
+                            <TextBlock Text="该功能用于减少从 SteamWatch 应用内绕过规则的可能，不能阻止通过任务管理器结束进程、删除本地 data 文件夹或卸载程序这类系统级操作。" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+            </ScrollViewer>
         </Grid>
     </NavigationView>
 </Page>

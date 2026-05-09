@@ -1,3 +1,5 @@
+using SteamWatch.Core.Security;
+
 namespace SteamWatch.Core.Settings;
 
 public sealed record AppSettings(
@@ -7,4 +9,6 @@ public sealed record AppSettings(
     int ForceCloseCountdownSeconds = 60,
     int FirstReminderThresholdPercent = 70,
     int SecondReminderThresholdPercent = 85,
-    int FinalReminderThresholdPercent = 95);
+    int FinalReminderThresholdPercent = 95,
+    bool RequireAuthenticationForSensitiveActions = false,
+    PasswordCredential? AuthenticationCredential = null);

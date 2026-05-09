@@ -1,4 +1,5 @@
 using SteamWatch.Core.Settings;
+using SteamWatch.Core.Security;
 using SteamWatch.Infrastructure.Storage;
 
 namespace SteamWatch.Tests;
@@ -20,6 +21,8 @@ public sealed class AppSettingsStoreTests
         Assert.AreEqual(70, settings.FirstReminderThresholdPercent);
         Assert.AreEqual(85, settings.SecondReminderThresholdPercent);
         Assert.AreEqual(95, settings.FinalReminderThresholdPercent);
+        Assert.IsFalse(settings.RequireAuthenticationForSensitiveActions);
+        Assert.IsNull(settings.AuthenticationCredential);
     }
 
     [TestMethod]
@@ -33,7 +36,9 @@ public sealed class AppSettingsStoreTests
             ForceCloseCountdownSeconds: 30,
             FirstReminderThresholdPercent: 50,
             SecondReminderThresholdPercent: 75,
-            FinalReminderThresholdPercent: 90);
+            FinalReminderThresholdPercent: 90,
+            RequireAuthenticationForSensitiveActions: true,
+            AuthenticationCredential: PasswordHasher.Create("1234"));
 
         await store.SaveAsync(settings);
         var loaded = await store.LoadAsync();

@@ -7,7 +7,9 @@ using Microsoft.UI.Xaml.Controls;
 using SteamWatch.App.Services;
 using SteamWatch.Core.Limits;
 using SteamWatch.Core.Notifications;
+using SteamWatch.Core.Security;
 using SteamWatch.Core.Settings;
+using SteamWatch.Core.Tracking;
 
 namespace SteamWatch.App;
 
@@ -16,13 +18,14 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
     private readonly SteamWatchAppService _appService = new();
     private readonly DispatcherTimer _monitorTimer = new() { Interval = TimeSpan.FromSeconds(10) };
     private readonly string _firstRunGuideMarkerPath = Path.Combine(AppContext.BaseDirectory, "data", "first-run-guide-shown.txt");
-    private readonly string _guidePath = Path.Combine(AppContext.BaseDirectory, "操作指南.txt");
     private string _statusMessage = "等待读取 Steam 缓存。";
     private string _gameCountText = "游戏 0 个";
     private bool _isRefreshingRuntimeStatus;
     private bool _isMonitoringPaused;
     private bool _isShowingNotificationDialog;
     private bool _isApplyingLimitRuleSelection;
+    private bool _isInitializingStatisticsFilters;
+    private bool _isApplyingSettings;
     private LimitRule? _selectedLimitRule;
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -50,6 +53,7 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
     public MainPage()
     {
         InitializeComponent();
+        InitializeStatisticsFilters();
         _appService.UserNotificationRaised += AppService_UserNotificationRaised;
         _monitorTimer.Tick += MonitorTimer_Tick;
         Loaded += MainPage_Loaded;
@@ -84,10 +88,12 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         SettingsView.Visibility = Visibility.Collapsed;
         GamesView.Visibility = tag == "Games" ? Visibility.Visible : Visibility.Collapsed;
         StatisticsView.Visibility = tag == "Statistics" ? Visibility.Visible : Visibility.Collapsed;
+        HelpView.Visibility = tag == "Help" ? Visibility.Visible : Visibility.Collapsed;
 
         PageTitle.Text = tag switch
         {
             "Statistics" => "统计",
+            "Help" => "帮助",
             _ => "游戏"
         };
         if (tag == "Statistics")
@@ -97,21 +103,44 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
 
         PageSubtitle.Text = tag == "Statistics"
             ? GetStatisticsSubtitle()
-            : "今日 0 分钟 / 本周 0 分钟";
+            : tag == "Help"
+                ? "操作指南和常见设置"
+                : "今日 0 分钟 / 本周 0 分钟";
     }
 
     private void ShowSettings()
     {
         GamesView.Visibility = Visibility.Collapsed;
         StatisticsView.Visibility = Visibility.Collapsed;
+        HelpView.Visibility = Visibility.Collapsed;
         SettingsView.Visibility = Visibility.Visible;
         PageTitle.Text = "设置";
-        PageSubtitle.Text = "托盘、提醒和自启动";
+        PageSubtitle.Text = "选择设置类别";
+        ShowSettingsRoot();
     }
 
     public void NavigateToSettings()
     {
         ShowSettings();
+    }
+
+    public AppSettings GetCurrentSettings()
+    {
+        return _appService.GetSettings();
+    }
+
+    public CloseWindowAction GetCurrentCloseWindowAction()
+    {
+        return CloseWindowActionComboBox.SelectedIndex == 1
+            ? CloseWindowAction.ExitApplication
+            : CloseWindowAction.MinimizeToTray;
+    }
+
+    public Task<bool> AuthorizeSensitiveActionAsync(string actionName)
+    {
+        return _appService.IsAuthenticationRequired()
+            ? ShowAuthenticationDialogAsync(actionName)
+            : Task.FromResult(true);
     }
 
     public void SetMonitoringPaused(bool isPaused)
@@ -176,19 +205,16 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         {
             XamlRoot = XamlRoot,
             Title = "欢迎使用 SteamWatch",
-            Content = "安装目录中包含《操作指南.txt》。建议先查看通知设置、托盘退出方式和游戏限额说明。",
-            PrimaryButtonText = File.Exists(_guidePath) ? "打开操作指南" : string.Empty,
+            Content = "建议先查看帮助页面，了解通知设置、托盘退出方式、游戏限额和认证保护。",
+            PrimaryButtonText = "查看帮助",
             CloseButtonText = "稍后查看"
         };
 
         var result = await dialog.ShowAsync();
-        if (result == ContentDialogResult.Primary && File.Exists(_guidePath))
+        if (result == ContentDialogResult.Primary)
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = _guidePath,
-                UseShellExecute = true
-            });
+            RootNavigation.SelectedItem = HelpNavigationItem;
+            ShowMainContent("Help");
         }
     }
 
@@ -211,7 +237,11 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
 
             StatusMessage = snapshot.StatusText;
             GameCountText = $"游戏 {GameRows.Count} 个";
-            PageSubtitle.Text = $"游戏 {GameRows.Count} 个 / 今日 0 分钟 / 本周 0 分钟";
+            if (GamesView.Visibility == Visibility.Visible)
+            {
+                PageSubtitle.Text = $"游戏 {GameRows.Count} 个 / 今日 0 分钟 / 本周 0 分钟";
+            }
+
             _monitorTimer.Start();
             await RefreshRuntimeStatusAsync();
         }
@@ -248,6 +278,57 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         LimitScopeComboBox.SelectedIndex = 1;
         LimitEnforcementComboBox.SelectedIndex = 1;
         LimitMinutesNumberBox.Focus(FocusState.Programmatic);
+    }
+
+    private void DailyStatsDatePicker_DateChanged(object sender, CalendarDatePickerDateChangedEventArgs args)
+    {
+        if (_isInitializingStatisticsFilters)
+        {
+            return;
+        }
+
+        RefreshStatistics();
+        if (StatisticsView.Visibility == Visibility.Visible)
+        {
+            PageSubtitle.Text = GetStatisticsSubtitle();
+        }
+    }
+
+    private void WeeklyStatsDatePicker_DateChanged(object sender, CalendarDatePickerDateChangedEventArgs args)
+    {
+        if (_isInitializingStatisticsFilters)
+        {
+            return;
+        }
+
+        RefreshStatistics();
+        if (StatisticsView.Visibility == Visibility.Visible)
+        {
+            PageSubtitle.Text = GetStatisticsSubtitle();
+        }
+    }
+
+    private void SettingsSectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string section })
+        {
+            ShowSettingsSection(section);
+        }
+    }
+
+    private void SettingsBackButton_Click(object sender, RoutedEventArgs e)
+    {
+        ShowSettingsRoot();
+    }
+
+    private async void ImmediateSettingsSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        await SaveImmediateGeneralSettingsAsync();
+    }
+
+    private async void ImmediateSettingsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        await SaveImmediateGeneralSettingsAsync();
     }
 
     private void GamesListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -292,6 +373,12 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
 
         try
         {
+            if (!await AuthorizeSensitiveActionAsync("删除限额规则"))
+            {
+                StatusMessage = "未通过认证，限额规则未删除。";
+                return;
+            }
+
             var rules = await _appService.DeleteLimitRuleAsync(rule);
             ReplaceLimitRows(rules);
             ClearSelectedLimitRule();
@@ -305,9 +392,19 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
 
     private async void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
     {
+        var existingSettings = _appService.GetSettings();
+        var existingAuthenticationRequired = existingSettings.RequireAuthenticationForSensitiveActions
+            && existingSettings.AuthenticationCredential is not null;
+        if (existingAuthenticationRequired
+            && !await ShowAuthenticationDialogAsync("保存设置"))
+        {
+            ShowSettingsMessage("未通过认证，设置未保存。", InfoBarSeverity.Warning);
+            return;
+        }
+
         if (double.IsNaN(ForceCloseCountdownNumberBox.Value))
         {
-            StatusMessage = "请输入有效的强退倒计时秒数。";
+            ShowSettingsMessage("请输入有效的强退倒计时秒数。", InfoBarSeverity.Error);
             return;
         }
 
@@ -315,7 +412,7 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
             || double.IsNaN(SecondReminderThresholdNumberBox.Value)
             || double.IsNaN(FinalReminderThresholdNumberBox.Value))
         {
-            StatusMessage = "请输入有效的提醒阈值。";
+            ShowSettingsMessage("请输入有效的提醒阈值。", InfoBarSeverity.Error);
             return;
         }
 
@@ -324,31 +421,91 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         var finalThreshold = (int)Math.Round(FinalReminderThresholdNumberBox.Value);
         if (firstThreshold <= 0 || firstThreshold >= secondThreshold || secondThreshold >= finalThreshold || finalThreshold >= 100)
         {
-            StatusMessage = "提醒阈值必须满足：一级 < 二级 < 最终 < 100。";
+            ShowSettingsMessage("提醒阈值必须满足：一级 < 二级 < 最终 < 100。", InfoBarSeverity.Error);
             return;
         }
 
+        var authenticationCredential = existingSettings.AuthenticationCredential;
+        if (RequireAuthenticationSwitch.IsOn)
+        {
+            var password = AuthenticationPasswordBox.Password;
+            var confirmPassword = ConfirmAuthenticationPasswordBox.Password;
+            if (!string.IsNullOrEmpty(password) || !string.IsNullOrEmpty(confirmPassword))
+            {
+                if (password.Length < 4)
+                {
+                    ShowSettingsMessage("认证密码至少需要 4 位。", InfoBarSeverity.Error);
+                    return;
+                }
+
+                if (password != confirmPassword)
+                {
+                    ShowSettingsMessage("两次输入的认证密码不一致，认证保护没有保存。", InfoBarSeverity.Error);
+                    return;
+                }
+
+                authenticationCredential = PasswordHasher.Create(password);
+            }
+            else if (authenticationCredential is null)
+            {
+                ShowSettingsMessage("开启认证时需要设置密码。", InfoBarSeverity.Error);
+                return;
+            }
+        }
+        else
+        {
+            authenticationCredential = null;
+        }
+
         var settings = new AppSettings(
-            CloseWindowActionComboBox.SelectedIndex == 1
-                ? CloseWindowAction.ExitApplication
-                : CloseWindowAction.MinimizeToTray,
+            GetCurrentCloseWindowAction(),
             StartWithWindowsSwitch.IsOn,
             PlayReminderSoundsSwitch.IsOn,
             Math.Max(5, (int)Math.Round(ForceCloseCountdownNumberBox.Value)),
             firstThreshold,
             secondThreshold,
-            finalThreshold);
+            finalThreshold,
+            RequireAuthenticationSwitch.IsOn,
+            authenticationCredential);
 
         try
         {
             await _appService.SaveSettingsAsync(settings);
             ApplySettings(settings);
+            AuthenticationPasswordBox.Password = string.Empty;
+            ConfirmAuthenticationPasswordBox.Password = string.Empty;
+            ShowSettingsMessage("设置已保存。", InfoBarSeverity.Success);
             StatusMessage = "设置已保存。";
         }
         catch (Exception ex)
         {
+            ShowSettingsMessage($"保存设置失败：{ex.Message}", InfoBarSeverity.Error);
             StatusMessage = $"保存设置失败：{ex.Message}";
         }
+    }
+
+    private async void UninstallButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!await AuthorizeSensitiveActionAsync("卸载 SteamWatch"))
+        {
+            ShowSettingsMessage("未通过认证，未启动卸载。", InfoBarSeverity.Warning);
+            return;
+        }
+
+        var installerPath = Path.Combine(AppContext.BaseDirectory, "SteamWatchSetup.exe");
+        if (!File.Exists(installerPath))
+        {
+            ShowSettingsMessage("当前目录未找到 SteamWatchSetup.exe。只有安装器版支持从应用内一键卸载。", InfoBarSeverity.Warning);
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = installerPath,
+            Arguments = "--uninstall",
+            UseShellExecute = true
+        });
+        App.ExitApplication();
     }
 
     private async Task LoadSettingsAsync()
@@ -383,6 +540,12 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         if (minutes <= 0)
         {
             StatusMessage = "限额分钟数必须大于 0。";
+            return;
+        }
+
+        if (!await AuthorizeSensitiveActionAsync("保存限额规则"))
+        {
+            StatusMessage = "未通过认证，限额规则未保存。";
             return;
         }
 
@@ -434,7 +597,9 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
             RefreshStatistics();
             PageSubtitle.Text = StatisticsView.Visibility == Visibility.Visible
                 ? GetStatisticsSubtitle()
-                : $"游戏 {GameRows.Count} 个 / 今日 {totalToday} 分钟 / 本周 {totalWeek} 分钟";
+                : HelpView.Visibility == Visibility.Visible
+                    ? "操作指南和常见设置"
+                    : $"游戏 {GameRows.Count} 个 / 今日 {totalToday} 分钟 / 本周 {totalWeek} 分钟";
         }
         catch (Exception ex)
         {
@@ -540,24 +705,155 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
 
     private void ApplySettings(AppSettings settings)
     {
-        CloseWindowActionComboBox.SelectedIndex = settings.CloseWindowAction == CloseWindowAction.ExitApplication ? 1 : 0;
-        StartWithWindowsSwitch.IsOn = settings.StartWithWindows;
-        PlayReminderSoundsSwitch.IsOn = settings.PlayReminderSounds;
-        ForceCloseCountdownNumberBox.Value = settings.ForceCloseCountdownSeconds;
-        FirstReminderThresholdNumberBox.Value = settings.FirstReminderThresholdPercent;
-        SecondReminderThresholdNumberBox.Value = settings.SecondReminderThresholdPercent;
-        FinalReminderThresholdNumberBox.Value = settings.FinalReminderThresholdPercent;
+        _isApplyingSettings = true;
+        try
+        {
+            CloseWindowActionComboBox.SelectedIndex = settings.CloseWindowAction == CloseWindowAction.ExitApplication ? 1 : 0;
+            StartWithWindowsSwitch.IsOn = settings.StartWithWindows;
+            PlayReminderSoundsSwitch.IsOn = settings.PlayReminderSounds;
+            ForceCloseCountdownNumberBox.Value = settings.ForceCloseCountdownSeconds;
+            FirstReminderThresholdNumberBox.Value = settings.FirstReminderThresholdPercent;
+            SecondReminderThresholdNumberBox.Value = settings.SecondReminderThresholdPercent;
+            FinalReminderThresholdNumberBox.Value = settings.FinalReminderThresholdPercent;
+            RequireAuthenticationSwitch.IsOn = settings.RequireAuthenticationForSensitiveActions;
+            AuthenticationPasswordBox.PlaceholderText = settings.AuthenticationCredential is null
+                ? "设置认证密码"
+                : "留空则保留当前密码";
+        }
+        finally
+        {
+            _isApplyingSettings = false;
+        }
+    }
+
+    private void ShowSettingsMessage(string message, InfoBarSeverity severity)
+    {
+        SettingsInfoBar.Title = message;
+        SettingsInfoBar.Message = string.Empty;
+        SettingsInfoBar.Severity = severity;
+        SettingsInfoBar.IsOpen = true;
+    }
+
+    private void ShowSettingsRoot()
+    {
+        SettingsRootPanel.Visibility = Visibility.Visible;
+        GeneralSettingsPanel.Visibility = Visibility.Collapsed;
+        ReminderSettingsPanel.Visibility = Visibility.Collapsed;
+        AuthenticationSettingsPanel.Visibility = Visibility.Collapsed;
+        MaintenanceSettingsPanel.Visibility = Visibility.Collapsed;
+        PageSubtitle.Text = "选择设置类别";
+    }
+
+    private void ShowSettingsSection(string section)
+    {
+        SettingsRootPanel.Visibility = Visibility.Collapsed;
+        GeneralSettingsPanel.Visibility = section == "General" ? Visibility.Visible : Visibility.Collapsed;
+        ReminderSettingsPanel.Visibility = section == "Reminder" ? Visibility.Visible : Visibility.Collapsed;
+        AuthenticationSettingsPanel.Visibility = section == "Authentication" ? Visibility.Visible : Visibility.Collapsed;
+        MaintenanceSettingsPanel.Visibility = section == "Maintenance" ? Visibility.Visible : Visibility.Collapsed;
+        PageSubtitle.Text = section switch
+        {
+            "General" => "常规设置会立即生效",
+            "Reminder" => "修改后点击保存设置",
+            "Authentication" => "修改后点击保存设置",
+            "Maintenance" => "应用维护",
+            _ => "选择设置类别"
+        };
+    }
+
+    private async Task SaveImmediateGeneralSettingsAsync()
+    {
+        if (_isApplyingSettings || !IsLoaded)
+        {
+            return;
+        }
+
+        var existingSettings = _appService.GetSettings();
+        var settings = existingSettings with
+        {
+            CloseWindowAction = GetCurrentCloseWindowAction(),
+            StartWithWindows = StartWithWindowsSwitch.IsOn,
+            PlayReminderSounds = PlayReminderSoundsSwitch.IsOn
+        };
+
+        try
+        {
+            await _appService.SaveSettingsAsync(settings);
+            ApplySettings(settings);
+            ShowSettingsMessage("常规设置已保存。", InfoBarSeverity.Success);
+            StatusMessage = "常规设置已保存。";
+        }
+        catch (Exception ex)
+        {
+            ShowSettingsMessage($"保存常规设置失败：{ex.Message}", InfoBarSeverity.Error);
+            StatusMessage = $"保存常规设置失败：{ex.Message}";
+        }
+    }
+
+    private async Task<bool> ShowAuthenticationDialogAsync(string actionName)
+    {
+        if (XamlRoot is null)
+        {
+            return false;
+        }
+
+        var passwordBox = new PasswordBox
+        {
+            Header = "认证密码",
+            MinWidth = 280
+        };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = actionName,
+            Content = passwordBox,
+            PrimaryButtonText = "确认",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
+        };
+
+        var result = await dialog.ShowAsync();
+        return result == ContentDialogResult.Primary
+            && _appService.VerifyAuthentication(passwordBox.Password);
     }
 
     private void RefreshStatistics()
     {
-        ReplaceStatRows(DailyStatRows, _appService.GetDailyStats());
-        ReplaceStatRows(WeeklyStatRows, _appService.GetWeeklyStats());
+        var selectedDate = GetSelectedDate(DailyStatsDatePicker);
+        var selectedWeekStart = WeekCalculator.GetWeekStart(GetSelectedDate(WeeklyStatsDatePicker));
+        var selectedWeekEnd = WeekCalculator.GetWeekEnd(selectedWeekStart);
+
+        ReplaceStatRows(DailyStatRows, _appService.GetDailyStats(selectedDate));
+        ReplaceStatRows(WeeklyStatRows, _appService.GetWeeklyStats(selectedWeekStart));
+
+        DailyStatsTotalText.Text = $"{selectedDate:yyyy-MM-dd} 总时长 {DailyStatRows.Sum(row => row.Minutes)} 分钟";
+        WeeklyStatsTotalText.Text = $"{selectedWeekStart:yyyy-MM-dd} - {selectedWeekEnd:yyyy-MM-dd} 总时长 {WeeklyStatRows.Sum(row => row.Minutes)} 分钟";
     }
 
     private string GetStatisticsSubtitle()
     {
-        return $"每日记录 {DailyStatRows.Count} 条 / 每周汇总 {WeeklyStatRows.Count} 条";
+        return "按日期和周查看游玩统计";
+    }
+
+    private void InitializeStatisticsFilters()
+    {
+        _isInitializingStatisticsFilters = true;
+        try
+        {
+            var today = DateTimeOffset.Now;
+            DailyStatsDatePicker.Date = today;
+            WeeklyStatsDatePicker.Date = today;
+        }
+        finally
+        {
+            _isInitializingStatisticsFilters = false;
+        }
+    }
+
+    private static DateOnly GetSelectedDate(CalendarDatePicker picker)
+    {
+        var date = picker.Date ?? DateTimeOffset.Now;
+        return DateOnly.FromDateTime(date.LocalDateTime);
     }
 
     private static void ReplaceStatRows(
