@@ -1,4 +1,4 @@
-# SteamWatch.WinUI
+# SteamWatch
 
 SteamWatch 是一个 Windows 桌面工具，用于监控 Steam 游戏运行时间，并在接近或超过限额时提醒用户，必要时可以倒计时后尝试关闭游戏进程。
 
@@ -69,7 +69,7 @@ SteamWatch 会在运行目录下的 `data/` 文件夹保存设置、限额规则
 ### 项目结构
 
 ```text
-SteamWatch.WinUI/
+SteamWatch/
   src/
     SteamWatch.App/             WinUI 3 桌面应用
     SteamWatch.Core/            领域逻辑、限额、提醒、统计
@@ -124,14 +124,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1 -Configur
 如果本地还没有配置远端：
 
 ```powershell
-git remote add origin https://github.com/lyclycNSP/SteamWatch.WinUI.git
+git remote add origin https://github.com/lyclycNSP/SteamWatch.git
 ```
 
 提交并推送：
 
 ```powershell
 git add .
-git commit -m "Prepare SteamWatch WinUI release"
+git commit -m "Prepare SteamWatch release"
 git branch -M main
 git push -u origin main
 ```

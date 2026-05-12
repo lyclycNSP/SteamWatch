@@ -1,4 +1,4 @@
-# SteamWatch WinUI 手动验收清单
+# SteamWatch 手动验收清单
 
 ## 验收前准备
 
