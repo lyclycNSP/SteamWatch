@@ -53,6 +53,36 @@ public sealed class GameProcessTerminatorTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => terminator.Terminate(0));
     }
 
+    [TestMethod]
+    public async Task Terminate_CloseMessageAcceptedButStillRunning_EscalatesAndConfirms()
+    {
+        var backend=new FakeProcessTerminatorBackend(true) { ExitAfterClose=false };
+        var result=await new GameProcessTerminator(backend).TerminateAsync(1234);
+        Assert.IsTrue(result.CloseRequested);
+        Assert.IsTrue(result.Killed);
+        Assert.IsTrue(result.Exited);
+        Assert.AreEqual(1,backend.KillAttempts);
+    }
+
+    [TestMethod]
+    public async Task Terminate_ProcessIdentityChanged_DoesNotKill()
+    {
+        var backend=new FakeProcessTerminatorBackend(true) { ExitAfterClose=false, SameProcess=false };
+        var result=await new GameProcessTerminator(backend).TerminateAsync(1234);
+        Assert.IsFalse(result.IsSuccess);
+        Assert.AreEqual(0,backend.KillAttempts);
+    }
+
+    [TestMethod]
+    public async Task Terminate_SampledIdentityMismatch_DoesNotSendCloseMessage()
+    {
+        var backend=new FakeProcessTerminatorBackend(true);
+        var game=new SteamWatch.Core.Steam.RunningSteamGame(730,1234,"game.exe",ExecutablePath:@"C:\different\game.exe");
+        var result=await new GameProcessTerminator(backend).TerminateAsync(game);
+        Assert.IsFalse(result.IsSuccess);
+        Assert.AreEqual(0,backend.CloseAttempts);
+    }
+
     private sealed class FakeProcessTerminatorBackend : IProcessTerminatorBackend
     {
         private readonly bool _closeMainWindowResult;
@@ -67,6 +97,12 @@ public sealed class GameProcessTerminatorTests
         public int CloseAttempts { get; private set; }
 
         public int KillAttempts { get; private set; }
+
+        public bool ExitAfterClose { get; set; } = true;
+        public bool SameProcess { get; set; } = true;
+        public string? GetIdentity(int processId) => "fixture";
+        public bool IsSameProcess(int processId, string? identity) => SameProcess;
+        public Task<bool> WaitForExitAsync(int processId, TimeSpan timeout, CancellationToken cancellationToken) => Task.FromResult(KillAttempts > 0 || ExitAfterClose);
 
         public bool TryCloseMainWindow(int processId)
         {

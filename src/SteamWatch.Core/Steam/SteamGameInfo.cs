@@ -4,4 +4,6 @@ public sealed record SteamGameInfo(
     int AppId,
     string Name,
     int PlaytimeForeverMinutes,
-    string? IconPath = null);
+    string? IconPath = null,
+    string? InstallDirectory = null,
+    bool HasPlaytimeObservation = true);

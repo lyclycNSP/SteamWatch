@@ -6,6 +6,34 @@ namespace SteamWatch.Tests;
 public sealed class PlaytimeRecordBookTests
 {
     [TestMethod]
+    public void WeeklyQueries_AfterAdditionAcrossYearBoundary_IncludeOnlyCurrentWeek()
+    {
+        var today = new DateOnly(2027, 1, 1);
+        var book = new PlaytimeRecordBook([
+            new(today.AddDays(-5), new Dictionary<int, int> { [730] = 999 }),
+            new(today.AddDays(-4), new Dictionary<int, int> { [730] = 10, [570] = 20 }),
+            new(today.AddDays(2), new Dictionary<int, int> { [730] = 30 }),
+            new(today.AddDays(3), new Dictionary<int, int> { [730] = 999 })]);
+        Assert.AreEqual(40, book.GetWeekGameMinutes(today, 730));
+        Assert.AreEqual(60, book.GetWeekTotalMinutes(today));
+        book.Add(today, new PlaytimeIncrement(570, "Dota", 5, false));
+        Assert.AreEqual(25, book.GetWeekGameMinutes(today, 570));
+        Assert.AreEqual(65, book.GetWeekTotalMinutes(today));
+        Assert.AreEqual(0, book.GetWeekGameMinutes(today, 999));
+    }
+
+    [TestMethod]
+    public void WeeklyQueries_Overflow_RemainsAnError()
+    {
+        var today = new DateOnly(2026, 10, 14);
+        var book = new PlaytimeRecordBook([
+            new(today, new Dictionary<int, int> { [730] = int.MaxValue }),
+            new(today.AddDays(1), new Dictionary<int, int> { [730] = 1 })]);
+        Assert.ThrowsExactly<OverflowException>(() => book.GetWeekGameMinutes(today, 730));
+        Assert.ThrowsExactly<OverflowException>(() => book.GetWeekTotalMinutes(today));
+    }
+
+    [TestMethod]
     public void Add_NewGameForDate_CreatesRecord()
     {
         var book = new PlaytimeRecordBook();

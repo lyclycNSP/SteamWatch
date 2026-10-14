@@ -1,0 +1,18 @@
+[
+  {
+    "scope": 1,
+    "period": 0,
+    "maxMinutes": 60,
+    "enforcement": 0,
+    "appId": null,
+    "name": "合成全局每日规则"
+  },
+  {
+    "scope": 0,
+    "period": 1,
+    "maxMinutes": 180,
+    "enforcement": 1,
+    "appId": 730,
+    "name": "合成单游戏每周规则"
+  }
+]

@@ -16,7 +16,8 @@ public sealed class LimitRuleStore
     public async Task<IReadOnlyList<LimitRule>> LoadAsync(CancellationToken cancellationToken = default)
     {
         var rules = await _store.LoadAsync<List<LimitRule>>(StorageKey, cancellationToken).ConfigureAwait(false);
-        return rules ?? [];
+        return (rules ?? []).Select(rule => rule.Normalize()).GroupBy(rule => rule.Identity)
+            .Select(group => group.Last()).ToList();
     }
 
     public Task SaveAsync(IReadOnlyList<LimitRule> rules, CancellationToken cancellationToken = default)

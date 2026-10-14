@@ -9,6 +9,36 @@ namespace SteamWatch.Tests;
 public sealed class RuntimeLimitCoordinatorTests
 {
     [TestMethod]
+    public void Evaluate_MixedRulesAcrossYearBoundary_MatchesIndependentEvaluation()
+    {
+        var today = new DateOnly(2027, 1, 1);
+        var records = Enumerable.Range(-400, 405).Select(offset =>
+            new DailyPlaytimeRecord(today.AddDays(offset), new Dictionary<int, int> { [730] = 2, [570] = 3 }))
+            .Reverse().ToList();
+        // The evaluator uses the first matching daily record and all weekly records.
+        records.Insert(0, new(today, new Dictionary<int, int> { [730] = 7 }));
+        var rules = new[] { LimitScope.Game, LimitScope.Global }.SelectMany(scope =>
+            new[] { LimitPeriod.Day, LimitPeriod.Week }.Select(period =>
+                new LimitRule(scope, period, 100, EnforcementMode.NotifyOnly, scope == LimitScope.Game ? 730 : null)))
+            .ToArray();
+        var result = new RuntimeLimitCoordinator().Evaluate(rules, records, today, new HashSet<int> { 730 },
+            new DateTimeOffset(2027, 1, 1, 12, 0, 0, TimeSpan.Zero));
+        var evaluator = new LimitEvaluator();
+        for (var i = 0; i < rules.Length; i++)
+            Assert.AreEqual(evaluator.Evaluate(rules[i].Normalize(), records, today), result.Decisions[i].Evaluation);
+    }
+
+    [TestMethod]
+    public void Evaluate_DailyRuleAtMaximumDate_DoesNotRequireRepresentableWeekEnd()
+    {
+        var result = new RuntimeLimitCoordinator().Evaluate(
+            [new(LimitScope.Global, LimitPeriod.Day, 100, EnforcementMode.NotifyOnly)],
+            [new(DateOnly.MaxValue, new Dictionary<int, int> { [730] = 5 })],
+            DateOnly.MaxValue, new HashSet<int>(), DateTimeOffset.MaxValue);
+        Assert.AreEqual(5, result.Decisions[0].Evaluation.UsedMinutes);
+    }
+
+    [TestMethod]
     public void Evaluate_RunningGameCrossesThreshold_CreatesReminder()
     {
         var coordinator = new RuntimeLimitCoordinator();

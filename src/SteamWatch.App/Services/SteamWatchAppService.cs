@@ -1,706 +1,132 @@
-using SteamWatch.Core.Enforcement;
+using SteamWatch.App.Presentation;
 using SteamWatch.Core.Limits;
 using SteamWatch.Core.Notifications;
-using SteamWatch.Core.Reminders;
-using SteamWatch.Core.Security;
 using SteamWatch.Core.Settings;
 using SteamWatch.Core.Steam;
 using SteamWatch.Core.Tracking;
 using SteamWatch.Infrastructure.Enforcement;
-using SteamWatch.Infrastructure.Notifications;
+using SteamWatch.Infrastructure.Runtime;
 using SteamWatch.Infrastructure.Startup;
 using SteamWatch.Infrastructure.Steam;
 using SteamWatch.Infrastructure.Storage;
 
 namespace SteamWatch.App.Services;
 
+/// <summary>WinUI mapping and lifetime adapter; business state lives in the runtime service.</summary>
 public sealed class SteamWatchAppService
 {
-    private readonly SteamPathResolver _pathResolver;
-    private readonly PlaytimeRecordStore _playtimeStore;
-    private readonly SteamPlaytimeSnapshotStore _steamPlaytimeSnapshotStore;
-    private readonly LimitRuleStore _limitRuleStore;
-    private readonly AppSettingsStore _settingsStore;
-    private readonly IStartupManager _startupManager;
-    private readonly INotificationService _notificationService;
-    private readonly IGameProcessTerminator _processTerminator;
-    private RuntimeLimitCoordinator _limitCoordinator = new();
-    private readonly HashSet<int> _announcedForceCloseCountdownRuleIds = [];
-    private readonly Dictionary<int, GameRowViewModel> _games = [];
-    private readonly Dictionary<int, RunningGameSession> _sessions = [];
-    private IReadOnlyList<LimitRule> _limitRules = [];
-    private AppSettings _settings = new();
-    private PlaytimeRecordBook _playtimeRecords = new();
-    private SteamPlaytimeSnapshot? _steamPlaytimeSnapshot;
-    private SteamProcessMonitor? _monitor;
-    private string? _steamPath;
+    private readonly SteamWatchRuntimeService _runtime;
+    private readonly DiagnosticLog _diagnostics;
+    private readonly BackgroundMonitor _monitor;
+    private volatile string? _runtimeError;
+    public string DataDirectory { get; }
+
+    public SteamWatchAppService()
+    {
+        DataDirectory = AppDataDirectory.Resolve();
+        _diagnostics = new(DataDirectory);
+        _runtime = new(new JsonFileStore(DataDirectory), new SteamCatalogProvider(),
+            new WindowsProcessSnapshotProvider(), new WindowsRuntimeClock(),
+            new WindowsStartupManager(new WindowsStartupRegistry()), new GameProcessTerminator(),
+            new WindowsAppNotificationService(), _diagnostics.Record);
+        _monitor = new(MonitorAsync);
+        _runtime.UserNotificationRaised += (_, message) => UserNotificationRaised?.Invoke(this, message);
+    }
 
     public event EventHandler<NotificationMessage>? UserNotificationRaised;
+    public bool IsPaused => _runtime.Current.IsPaused;
+    public int TotalTodayMinutes => new PlaytimeRecordBook(_runtime.Current.Records).GetTotalMinutes(DateOnly.FromDateTime(DateTime.Now));
+    public int TotalWeekMinutes => new PlaytimeRecordBook(_runtime.Current.Records).GetWeekTotalMinutes(DateOnly.FromDateTime(DateTime.Now));
+    public string LimitSummary => _runtime.Current.LimitSummary;
+    public string EarliestForceCloseSummary => _runtime.Current.EarliestForceCloseSummary;
+    public Task<RuntimeSnapshot> SetGameCategoryAsync(int appId, SteamAppCategory category) => _runtime.SetGameCategoryAsync(appId, category);
+    public AppSettings GetSettings() => _runtime.Current.Settings;
+    public IReadOnlyList<LimitRule> GetLimitRules() => _runtime.Current.Rules;
+    public bool IsAuthenticationRequired() => _runtime.IsAuthenticationRequired;
+    public bool VerifyAuthentication(string password) => _runtime.VerifyAuthentication(password);
+    public Task<RuntimeSnapshot> InitializeAsync() => _runtime.InitializeAsync();
 
-    public SteamWatchAppService(
-        SteamPathResolver? pathResolver = null,
-        PlaytimeRecordStore? playtimeStore = null,
-        SteamPlaytimeSnapshotStore? steamPlaytimeSnapshotStore = null,
-        LimitRuleStore? limitRuleStore = null,
-        AppSettingsStore? settingsStore = null,
-        IStartupManager? startupManager = null,
-        INotificationService? notificationService = null,
-        IGameProcessTerminator? processTerminator = null)
+    public async Task<RuntimeReadModel> LoadGameListAsync(CancellationToken cancellationToken = default)
     {
-        _pathResolver = pathResolver ?? new SteamPathResolver();
-        var defaultStore = new JsonFileStore(Path.Combine(AppContext.BaseDirectory, "data"));
-        _playtimeStore = playtimeStore ?? new PlaytimeRecordStore(
-            defaultStore);
-        _steamPlaytimeSnapshotStore = steamPlaytimeSnapshotStore ?? new SteamPlaytimeSnapshotStore(defaultStore);
-        _limitRuleStore = limitRuleStore ?? new LimitRuleStore(defaultStore);
-        _settingsStore = settingsStore ?? new AppSettingsStore(defaultStore);
-        _startupManager = startupManager ?? new WindowsStartupManager(new WindowsStartupRegistry());
-        _notificationService = notificationService ?? new WindowsAppNotificationService();
-        _processTerminator = processTerminator ?? new GameProcessTerminator();
+        await _runtime.RefreshGamesAsync(cancellationToken);
+        var snapshot = await _runtime.PollAsync(cancellationToken);
+        _runtimeError = null;
+        _monitor.Start();
+        return new(snapshot, DateOnly.FromDateTime(DateTime.Now));
     }
 
-    public async Task<GameListSnapshot> LoadGameListAsync(CancellationToken cancellationToken = default)
+    private async Task MonitorAsync(CancellationToken cancellationToken)
     {
-        var steamPath = _pathResolver.Resolve();
-        _steamPath = steamPath;
-        var reader = new SteamCacheReader(steamPath);
-        var userId = await reader.GetCurrentUserIdAsync(cancellationToken).ConfigureAwait(false);
-        var games = await reader.ReadGamesAsync(userId, cancellationToken).ConfigureAwait(false);
-        _playtimeRecords = await _playtimeStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-        _limitRules = await _limitRuleStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-        _settings = await _settingsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-        ApplyRuntimeSettings(_settings);
-        var today = DateOnly.FromDateTime(DateTimeOffset.Now.LocalDateTime);
-        var offlineMinutes = await ReconcileSteamPlaytimeSnapshotAsync(
-            games,
-            today,
-            DateTimeOffset.Now,
-            cancellationToken).ConfigureAwait(false);
-
-        var rows = games
-            .Select(game => new GameRowViewModel(
-                game.AppId,
-                game.Name,
-                game.PlaytimeForeverMinutes,
-                "未运行",
-                $"今日 {_playtimeRecords.GetGameMinutes(today, game.AppId)} 分钟",
-                $"本周 {_playtimeRecords.GetWeekGameMinutes(today, game.AppId)} 分钟",
-                game.IconPath))
-            .ToList();
-
-        _games.Clear();
-        foreach (var row in rows)
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        try
         {
-            _games[row.AppId] = row;
-        }
-
-        _monitor = new SteamProcessMonitor(
-            new WindowsProcessSnapshotProvider(),
-            new SteamGameProcessIdentifier(games, steamPath));
-
-        var status = userId is null
-            ? $"已找到 Steam：{steamPath}，但未找到当前用户"
-            : $"已找到 Steam：{steamPath}，用户 {userId}，游戏 {rows.Count} 个";
-        if (offlineMinutes > 0)
-        {
-            status = $"{status}。已补记未开启 SteamWatch 时的 Steam 累计时长 {offlineMinutes} 分钟";
-        }
-
-        return new GameListSnapshot(steamPath, userId, status, rows);
-    }
-
-    public async Task<GameStatusSnapshot> PollRuntimeStatusAsync(
-        DateTimeOffset now,
-        CancellationToken cancellationToken = default)
-    {
-        if (_monitor is null || _games.Count == 0)
-        {
-            return new GameStatusSnapshot("监控尚未初始化，请先刷新游戏列表。", _games.Values.ToList());
-        }
-
-        var today = DateOnly.FromDateTime(now.LocalDateTime);
-        var changes = _monitor.Poll();
-        foreach (var started in changes.Started)
-        {
-            _sessions[started.AppId] = new RunningGameSession(
-                started.AppId,
-                started.ProcessId,
-                ResolveGameName(started),
-                now);
-        }
-
-        foreach (var running in changes.Running)
-        {
-            if (!_sessions.TryGetValue(running.AppId, out var session))
+            while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                _sessions[running.AppId] = new RunningGameSession(
-                    running.AppId,
-                    running.ProcessId,
-                    ResolveGameName(running),
-                    now);
-                continue;
+                try { await _runtime.PollAsync(cancellationToken); _runtimeError = null; }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
+                catch (Exception ex) { _diagnostics.Record("monitor", ex); _runtimeError = $"监控失败：{ex.Message}。将重试；请保留数据文件。"; }
             }
-
-            var increment = session.Checkpoint(now);
-            await AddPlaytimeIncrementAsync(today, increment, cancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
 
-        foreach (var stopped in changes.Stopped)
-        {
-            if (!_sessions.Remove(stopped.AppId, out var session))
+    public RuntimeReadModel CaptureReadModel() => new(_runtime.Current,
+        DateOnly.FromDateTime(DateTime.Now), _runtimeError);
+
+    public Task<RuntimeSnapshot> RestoreBackupAsync(string json) => _runtime.RestoreBackupAsync(json);
+    public Task<string> CreateBackupAsync() => _runtime.CreateBackupAsync();
+    public Task<byte[]> CreateDiagnosticsAsync() => Task.Run(() => DiagnosticPackage.Create(DataDirectory, _runtime.Current));
+    public void RecordDiagnostic(string category, Exception exception) => _diagnostics.Record(category, exception);
+    public string GetGameName(int appId) => _runtime.Current.GameNames.GetValueOrDefault(appId) ?? $"AppID {appId}";
+    public IReadOnlyList<EstimatedPlaytimeEntry> GetEstimatedEntries(DateOnly date) =>
+        _runtime.Current.EstimatedEntries.Where(e => e.Date == date).ToList();
+    public int GetEstimatedMinutes(DateOnly date, int appId) =>
+        _runtime.Current.EstimatedRecords.FirstOrDefault(r => r.Date == date)?.GetGameMinutes(appId) ?? 0;
+    public Task<RuntimeSnapshot> CorrectEstimatedMinutesAsync(DateOnly date, int appId, int expectedMinutes, int minutes, string reason) =>
+        _runtime.CorrectEstimatedMinutesAsync(date, appId, expectedMinutes, minutes, reason);
+    public Task<RuntimeSnapshot> SetPausedAsync(bool paused) => _runtime.SetPausedAsync(paused);
+    public async Task<AppSettings> LoadSettingsAsync(CancellationToken cancellationToken = default) =>
+        (await _runtime.InitializeAsync(cancellationToken)).Settings;
+    public Task<AppSettings> SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default) =>
+        _runtime.SaveSettingsAsync(settings, cancellationToken);
+    public Task<IReadOnlyList<LimitRule>> UpsertLimitRuleAsync(LimitRule rule) => _runtime.SaveRuleAsync(rule);
+    public Task<IReadOnlyList<LimitRule>> ReplaceLimitRuleAsync(LimitRule oldRule, LimitRule newRule) => _runtime.SaveRuleAsync(newRule, oldRule);
+    public Task<IReadOnlyList<LimitRule>> DeleteLimitRuleAsync(LimitRule rule) => _runtime.DeleteRuleAsync(rule);
+
+    public void ResumeAfterExitFailure() => _monitor.Start();
+
+    public Task ShutdownAsync() => _monitor.StopAndFlushAsync(async () => await _runtime.FlushAsync());
+
+    public static IReadOnlyList<GameRowViewModel> MapGames(RuntimeReadModel model)
+    {
+        var snapshot = model.Source;
+        var book = model.MeasuredBook;
+        var date = model.Today;
+        var rows = snapshot.Games.OrderByDescending(g => g.IsRunning).ThenBy(g => g.Info.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(g =>
             {
-                continue;
-            }
-
-            var increment = session.Complete(now);
-            await AddPlaytimeIncrementAsync(today, increment, cancellationToken).ConfigureAwait(false);
-        }
-
-        var runningAppIds = changes.Running.Select(game => game.AppId).ToHashSet();
-        var limitResult = _limitCoordinator.Evaluate(
-            _limitRules,
-            _playtimeRecords.Records,
-            today,
-            runningAppIds,
-            now);
-        ShowReminderNotifications(limitResult);
-        ShowForceCloseCountdownNotifications(limitResult, now);
-        var forceCloseStatus = await ExecuteReadyForceCloseAsync(
-            limitResult,
-            changes.Running,
-            now,
-            cancellationToken).ConfigureAwait(false);
-
-        var rows = _games.Values
-            .OrderBy(game => game.Name, StringComparer.CurrentCultureIgnoreCase)
-            .Select(game =>
-            {
-                var todayMinutes = _playtimeRecords.GetGameMinutes(today, game.AppId);
-                var weekMinutes = _playtimeRecords.GetWeekGameMinutes(today, game.AppId);
-                return game.WithRuntimeState(runningAppIds.Contains(game.AppId), todayMinutes, weekMinutes);
-            })
-            .ToList();
-
-        var status = runningAppIds.Count == 0
-            ? $"监控中：未检测到运行中的 Steam 游戏。Steam 路径：{_steamPath}"
-            : $"监控中：{runningAppIds.Count} 个 Steam 游戏正在运行。";
-        status = AppendLimitStatus(status, limitResult, now);
-        if (!string.IsNullOrWhiteSpace(forceCloseStatus))
-        {
-            status = $"{status} {forceCloseStatus}";
-        }
-
-        return new GameStatusSnapshot(status, rows);
-    }
-
-    public IReadOnlyList<LimitRule> GetLimitRules()
-    {
-        return _limitRules;
-    }
-
-    public AppSettings GetSettings()
-    {
-        return _settings;
-    }
-
-    public bool IsAuthenticationRequired()
-    {
-        return _settings.RequireAuthenticationForSensitiveActions
-            && _settings.AuthenticationCredential is not null;
-    }
-
-    public bool VerifyAuthentication(string password)
-    {
-        return PasswordHasher.Verify(password, _settings.AuthenticationCredential);
-    }
-
-    public async Task<AppSettings> LoadSettingsAsync(CancellationToken cancellationToken = default)
-    {
-        _settings = await _settingsStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var startupState = _startupManager.GetState();
-        _settings = _settings with { StartWithWindows = startupState.IsEnabled };
-        ApplyRuntimeSettings(_settings);
-        return _settings;
-    }
-
-    public async Task<AppSettings> SaveSettingsAsync(
-        AppSettings settings,
-        CancellationToken cancellationToken = default)
-    {
-        if (settings.StartWithWindows)
-        {
-            _startupManager.Enable(Environment.ProcessPath ?? AppContext.BaseDirectory);
-        }
-        else
-        {
-            _startupManager.Disable();
-        }
-
-        await _settingsStore.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
-        _settings = settings;
-        ApplyRuntimeSettings(_settings);
-        return _settings;
-    }
-
-    public async Task<IReadOnlyList<LimitRule>> LoadLimitRulesAsync(CancellationToken cancellationToken = default)
-    {
-        _limitRules = await _limitRuleStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-        return _limitRules;
-    }
-
-    public async Task<IReadOnlyList<LimitRule>> UpsertLimitRuleAsync(
-        LimitRule rule,
-        CancellationToken cancellationToken = default)
-    {
-        var rules = _limitRules
-            .Where(existing => !IsSameRuleTarget(existing, rule))
-            .Append(rule)
-            .ToList();
-
-        await _limitRuleStore.SaveAsync(rules, cancellationToken).ConfigureAwait(false);
-        _limitRules = rules;
-        return _limitRules;
-    }
-
-    public async Task<IReadOnlyList<LimitRule>> DeleteLimitRuleAsync(
-        LimitRule rule,
-        CancellationToken cancellationToken = default)
-    {
-        var rules = _limitRules
-            .Where(existing => !IsSameRuleTarget(existing, rule))
-            .ToList();
-
-        await _limitRuleStore.SaveAsync(rules, cancellationToken).ConfigureAwait(false);
-        _limitRules = rules;
-        return _limitRules;
-    }
-
-    public async Task<IReadOnlyList<LimitRule>> ReplaceLimitRuleAsync(
-        LimitRule oldRule,
-        LimitRule newRule,
-        CancellationToken cancellationToken = default)
-    {
-        var rules = _limitRules
-            .Where(existing => !IsSameRuleTarget(existing, oldRule) && !IsSameRuleTarget(existing, newRule))
-            .Append(newRule)
-            .ToList();
-
-        await _limitRuleStore.SaveAsync(rules, cancellationToken).ConfigureAwait(false);
-        _limitRules = rules;
-        return _limitRules;
-    }
-
-    public IReadOnlyList<PlaytimeStatRowViewModel> GetDailyStats()
-    {
-        return _playtimeRecords.Records
-            .OrderByDescending(record => record.Date)
-            .SelectMany(record => record.GameMinutes
-                .OrderByDescending(item => item.Value)
-                .Select(item => new PlaytimeStatRowViewModel(
-                    record.Date.ToString("yyyy-MM-dd"),
-                    item.Key,
-                    ResolveGameName(item.Key),
-                    item.Value,
-                    ResolveGameIconPath(item.Key))))
-            .ToList();
-    }
-
-    public IReadOnlyList<PlaytimeStatRowViewModel> GetDailyStats(DateOnly date)
-    {
-        var record = _playtimeRecords.Records.FirstOrDefault(item => item.Date == date);
-        if (record is null)
-        {
-            return [];
-        }
-
-        return record.GameMinutes
-            .OrderByDescending(item => item.Value)
-            .ThenBy(item => ResolveGameName(item.Key), StringComparer.CurrentCultureIgnoreCase)
-            .Select(item => new PlaytimeStatRowViewModel(
-                date.ToString("yyyy-MM-dd"),
-                item.Key,
-                ResolveGameName(item.Key),
-                item.Value,
-                ResolveGameIconPath(item.Key)))
-            .ToList();
-    }
-
-    public IReadOnlyList<PlaytimeStatRowViewModel> GetWeeklyStats()
-    {
-        return _playtimeRecords.Records
-            .SelectMany(record => record.GameMinutes.Select(item => new
-            {
-                WeekStart = WeekCalculator.GetWeekStart(record.Date),
-                AppId = item.Key,
-                Minutes = item.Value
-            }))
-            .GroupBy(item => new { item.WeekStart, item.AppId })
-            .Select(group => new PlaytimeStatRowViewModel(
-                $"{group.Key.WeekStart:yyyy-MM-dd} - {WeekCalculator.GetWeekEnd(group.Key.WeekStart):yyyy-MM-dd}",
-                group.Key.AppId,
-                ResolveGameName(group.Key.AppId),
-                group.Sum(item => item.Minutes),
-                ResolveGameIconPath(group.Key.AppId)))
-            .OrderByDescending(row => row.PeriodText)
-            .ThenByDescending(row => row.Minutes)
-            .ToList();
-    }
-
-    public IReadOnlyList<PlaytimeStatRowViewModel> GetWeeklyStats(DateOnly weekStart)
-    {
-        var normalizedWeekStart = WeekCalculator.GetWeekStart(weekStart);
-        var weekEnd = WeekCalculator.GetWeekEnd(normalizedWeekStart);
-
-        return _playtimeRecords.Records
-            .Where(record => record.Date >= normalizedWeekStart && record.Date <= weekEnd)
-            .SelectMany(record => record.GameMinutes.Select(item => new
-            {
-                AppId = item.Key,
-                Minutes = item.Value
-            }))
-            .GroupBy(item => item.AppId)
-            .Select(group => new PlaytimeStatRowViewModel(
-                $"{normalizedWeekStart:yyyy-MM-dd} - {weekEnd:yyyy-MM-dd}",
-                group.Key,
-                ResolveGameName(group.Key),
-                group.Sum(item => item.Minutes),
-                ResolveGameIconPath(group.Key)))
-            .OrderByDescending(row => row.Minutes)
-            .ThenBy(row => row.GameName, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
-    }
-
-    private string ResolveGameName(RunningSteamGame game)
-    {
-        if (_games.TryGetValue(game.AppId, out var row))
-        {
-            return row.Name;
-        }
-
-        return game.GameName ?? game.ProcessName;
-    }
-
-    private string ResolveGameName(int appId)
-    {
-        return _games.TryGetValue(appId, out var row)
-            ? row.Name
-            : $"AppID {appId}";
-    }
-
-    private string? ResolveGameIconPath(int appId)
-    {
-        return _games.TryGetValue(appId, out var row)
-            ? row.IconPath
-            : null;
-    }
-
-    private async Task AddPlaytimeIncrementAsync(
-        DateOnly date,
-        PlaytimeIncrement increment,
-        CancellationToken cancellationToken)
-    {
-        if (increment.Minutes <= 0)
-        {
-            return;
-        }
-
-        _playtimeRecords.Add(date, increment);
-        await _playtimeStore.SaveAsync(_playtimeRecords, cancellationToken).ConfigureAwait(false);
-        await AddSteamSnapshotIncrementAsync(increment, cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task<int> ReconcileSteamPlaytimeSnapshotAsync(
-        IReadOnlyList<SteamGameInfo> games,
-        DateOnly date,
-        DateTimeOffset observedAt,
-        CancellationToken cancellationToken)
-    {
-        var previous = await _steamPlaytimeSnapshotStore.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var current = CreateSteamPlaytimeSnapshot(games, observedAt);
-        var offlineMinutes = 0;
-
-        if (previous is not null)
-        {
-            var previousByAppId = previous.Games.ToDictionary(game => game.AppId);
-            foreach (var game in current.Games)
-            {
-                if (!previousByAppId.TryGetValue(game.AppId, out var oldGame))
+                var today = book.GetGameMinutes(date, g.Info.AppId);
+                var week = book.GetWeekGameMinutes(date, g.Info.AppId);
+                var rules = snapshot.Rules.Where(rule => rule.IsEnabled && rule.Scope == LimitScope.Game && rule.AppId == g.Info.AppId);
+                return new GameRowViewModel(g.Info.AppId, g.Info.Name, g.Info.PlaytimeForeverMinutes,
+                    g.IsRunning ? "运行中" : "未运行", $"{today} 分钟", $"{week} 分钟", g.Info.IconPath)
                 {
-                    continue;
-                }
-
-                var delta = game.PlaytimeForeverMinutes - oldGame.PlaytimeForeverMinutes;
-                if (delta <= 0)
-                {
-                    continue;
-                }
-
-                _playtimeRecords.Add(date, new PlaytimeIncrement(game.AppId, game.Name, delta, false));
-                offlineMinutes += delta;
-            }
-
-            if (offlineMinutes > 0)
-            {
-                await _playtimeStore.SaveAsync(_playtimeRecords, cancellationToken).ConfigureAwait(false);
-            }
-        }
-
-        _steamPlaytimeSnapshot = current;
-        await _steamPlaytimeSnapshotStore.SaveAsync(current, cancellationToken).ConfigureAwait(false);
-        return offlineMinutes;
-    }
-
-    private async Task AddSteamSnapshotIncrementAsync(
-        PlaytimeIncrement increment,
-        CancellationToken cancellationToken)
-    {
-        if (_steamPlaytimeSnapshot is null || increment.Minutes <= 0)
+                    TodayMinutes = today, WeekMinutes = week, Category = g.Category,
+                    RuleText = RuntimePresentation.GameRuleSummary(rules)
+                };
+            }).ToList();
+        var knownIds = rows.Select(row => row.AppId).ToHashSet();
+        foreach (var group in snapshot.Rules.Where(rule => rule.Scope == LimitScope.Game && rule.AppId.HasValue)
+            .GroupBy(rule => rule.AppId!.Value).Where(group => !knownIds.Contains(group.Key)))
         {
-            return;
-        }
-
-        var games = _steamPlaytimeSnapshot.Games
-            .Where(game => game.AppId != increment.AppId)
-            .Append(new SteamPlaytimeSnapshotGame(
-                increment.AppId,
-                increment.GameName,
-                GetSnapshotMinutes(increment.AppId) + increment.Minutes))
-            .OrderBy(game => game.AppId)
-            .ToList();
-
-        _steamPlaytimeSnapshot = new SteamPlaytimeSnapshot(DateTimeOffset.Now, games);
-        await _steamPlaytimeSnapshotStore.SaveAsync(_steamPlaytimeSnapshot, cancellationToken).ConfigureAwait(false);
-    }
-
-    private static SteamPlaytimeSnapshot CreateSteamPlaytimeSnapshot(
-        IReadOnlyList<SteamGameInfo> games,
-        DateTimeOffset observedAt)
-    {
-        return new SteamPlaytimeSnapshot(
-            observedAt,
-            games
-                .Where(game => game.AppId > 0 && game.PlaytimeForeverMinutes >= 0)
-                .Select(game => new SteamPlaytimeSnapshotGame(
-                    game.AppId,
-                    game.Name,
-                    game.PlaytimeForeverMinutes))
-            .OrderBy(game => game.AppId)
-            .ToList());
-    }
-
-    private int GetSnapshotMinutes(int appId)
-    {
-        return _steamPlaytimeSnapshot?.Games
-            .FirstOrDefault(game => game.AppId == appId)?
-            .PlaytimeForeverMinutes ?? 0;
-    }
-
-    private void ShowReminderNotifications(RuntimeLimitCheckResult limitResult)
-    {
-        foreach (var decision in limitResult.Decisions.Where(item => item.Reminder.ShouldNotify))
-        {
-            var message = CreateReminderMessage(decision, _settings.PlayReminderSounds);
-            try
+            var today = book.GetGameMinutes(date, group.Key);
+            var week = book.GetWeekGameMinutes(date, group.Key);
+            rows.Add(new GameRowViewModel(group.Key, group.First().Name, 0, "未在当前库中", $"{today} 分钟", $"{week} 分钟")
             {
-                _notificationService.Show(message);
-            }
-            catch
-            {
-                // Notification failure must not stop monitoring or playtime persistence.
-            }
-
-            UserNotificationRaised?.Invoke(this, message);
+                TodayMinutes = today, WeekMinutes = week,
+                RuleText = RuntimePresentation.GameRuleSummary(group)
+            });
         }
-    }
-
-    private void ShowForceCloseCountdownNotifications(RuntimeLimitCheckResult limitResult, DateTimeOffset now)
-    {
-        foreach (var decision in limitResult.Decisions)
-        {
-            if (decision.ForceClose.State != ForceCloseCountdownState.Waiting || decision.ForceClose.Deadline is null)
-            {
-                _announcedForceCloseCountdownRuleIds.Remove(decision.RuleId);
-                continue;
-            }
-
-            if (!_announcedForceCloseCountdownRuleIds.Add(decision.RuleId))
-            {
-                continue;
-            }
-
-            var message = CreateForceCloseCountdownMessage(decision, now, _settings.PlayReminderSounds);
-            try
-            {
-                _notificationService.Show(message);
-            }
-            catch
-            {
-                // Notification failure must not stop monitoring or playtime persistence.
-            }
-
-            UserNotificationRaised?.Invoke(this, message);
-        }
-    }
-
-    private static NotificationMessage CreateReminderMessage(RuntimeLimitDecision decision, bool playSound)
-    {
-        var ruleName = string.IsNullOrWhiteSpace(decision.Evaluation.Rule.Name)
-            ? GetRuleDisplayName(decision.Evaluation.Rule)
-            : decision.Evaluation.Rule.Name;
-        var percent = Math.Floor(decision.Evaluation.Progress * 100);
-        var severity = decision.Reminder.Level >= ReminderLevel.Exceeded
-            ? NotificationSeverity.Critical
-            : NotificationSeverity.Warning;
-
-        return new NotificationMessage(
-            "SteamWatch 限额提醒",
-            $"{ruleName} 已使用 {decision.Evaluation.UsedMinutes}/{decision.Evaluation.Rule.MaxMinutes} 分钟（{percent}%）。",
-            severity,
-            playSound);
-    }
-
-    private static NotificationMessage CreateForceCloseCountdownMessage(
-        RuntimeLimitDecision decision,
-        DateTimeOffset now,
-        bool playSound)
-    {
-        var ruleName = string.IsNullOrWhiteSpace(decision.Evaluation.Rule.Name)
-            ? GetRuleDisplayName(decision.Evaluation.Rule)
-            : decision.Evaluation.Rule.Name;
-        var deadline = decision.ForceClose.Deadline ?? now;
-        var seconds = Math.Max(0, (int)Math.Ceiling((deadline - now).TotalSeconds));
-
-        return new NotificationMessage(
-            "SteamWatch 强退倒计时",
-            $"{ruleName} 已超限，将在 {seconds} 秒后尝试关闭游戏。",
-            NotificationSeverity.Critical,
-            playSound);
-    }
-
-    private static string AppendLimitStatus(
-        string status,
-        RuntimeLimitCheckResult limitResult,
-        DateTimeOffset now)
-    {
-        var readyToClose = limitResult.Decisions.FirstOrDefault(item => item.ForceClose.ShouldCloseNow);
-        if (readyToClose is not null)
-        {
-            return $"{status} {GetRuleDisplayName(readyToClose.Evaluation.Rule)} 已达到强退条件。";
-        }
-
-        var countdown = limitResult.Decisions
-            .Where(item => item.ForceClose.State == ForceCloseCountdownState.Waiting && item.ForceClose.Deadline is not null)
-            .OrderBy(item => item.ForceClose.Deadline)
-            .FirstOrDefault();
-        if (countdown is not null)
-        {
-            var remaining = countdown.ForceClose.Deadline!.Value - now;
-            var seconds = Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
-            return $"{status} {GetRuleDisplayName(countdown.Evaluation.Rule)} 强退倒计时 {seconds} 秒。";
-        }
-
-        var exceeded = limitResult.Decisions.FirstOrDefault(item => item.Evaluation.IsExceeded);
-        if (exceeded is not null)
-        {
-            return $"{status} {GetRuleDisplayName(exceeded.Evaluation.Rule)} 已超限。";
-        }
-
-        return status;
-    }
-
-    private async Task<string> ExecuteReadyForceCloseAsync(
-        RuntimeLimitCheckResult limitResult,
-        IReadOnlyList<RunningSteamGame> runningGames,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        var targets = GetForceCloseTargets(limitResult, runningGames)
-            .GroupBy(game => game.ProcessId)
-            .Select(group => group.First())
-            .ToList();
-        if (targets.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        var results = new List<GameProcessTerminationResult>();
-        foreach (var target in targets)
-        {
-            if (_sessions.Remove(target.AppId, out var session))
-            {
-                var increment = session.Complete(now);
-                await AddPlaytimeIncrementAsync(
-                    DateOnly.FromDateTime(now.LocalDateTime),
-                    increment,
-                    cancellationToken).ConfigureAwait(false);
-            }
-
-            results.Add(_processTerminator.Terminate(target.ProcessId));
-        }
-
-        var succeeded = results.Count(item => item.IsSuccess);
-        var failed = results.Count - succeeded;
-
-        return failed == 0
-            ? $"已请求关闭 {succeeded} 个游戏进程。"
-            : $"已请求关闭 {succeeded} 个游戏进程，{failed} 个失败。";
-    }
-
-    private static IEnumerable<RunningSteamGame> GetForceCloseTargets(
-        RuntimeLimitCheckResult limitResult,
-        IReadOnlyList<RunningSteamGame> runningGames)
-    {
-        foreach (var decision in limitResult.Decisions.Where(item => item.ForceClose.ShouldCloseNow))
-        {
-            if (decision.Evaluation.Rule.Scope == LimitScope.Global)
-            {
-                foreach (var game in runningGames)
-                {
-                    yield return game;
-                }
-
-                continue;
-            }
-
-            if (decision.Evaluation.Rule.AppId is not int appId)
-            {
-                continue;
-            }
-
-            foreach (var game in runningGames.Where(item => item.AppId == appId))
-            {
-                yield return game;
-            }
-        }
-    }
-
-    private static string GetRuleDisplayName(LimitRule rule)
-    {
-        if (!string.IsNullOrWhiteSpace(rule.Name))
-        {
-            return rule.Name;
-        }
-
-        return rule.Scope == LimitScope.Global
-            ? "全部游戏"
-            : $"AppID {rule.AppId}";
-    }
-
-    private static bool IsSameRuleTarget(LimitRule left, LimitRule right)
-    {
-        return left.Scope == right.Scope
-            && left.Period == right.Period
-            && left.AppId == right.AppId;
-    }
-
-    private void ApplyRuntimeSettings(AppSettings settings)
-    {
-        var countdownSeconds = Math.Max(5, settings.ForceCloseCountdownSeconds);
-        _limitCoordinator = new RuntimeLimitCoordinator(
-            reminderPolicy: new ReminderPolicy(new ReminderThresholdSettings(
-                settings.FirstReminderThresholdPercent,
-                settings.SecondReminderThresholdPercent,
-                settings.FinalReminderThresholdPercent)),
-            forceClosePolicy: new ForceClosePolicy(TimeSpan.FromSeconds(countdownSeconds)));
+        return rows;
     }
 }

@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <Version>2.0.0-preview.2</Version>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
+    <BaseIntermediateOutputPath Condition="'$(UiAcceptanceHost)' == 'true'">$(MSBuildThisFileDirectory)artifacts\ui-acceptance-build\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <BaseOutputPath Condition="'$(UiAcceptanceHost)' == 'true'">$(MSBuildThisFileDirectory)artifacts\ui-acceptance-build\bin\$(MSBuildProjectName)\</BaseOutputPath>
+    <DefaultItemExcludes Condition="'$(UiAcceptanceHost)' == 'true'">$(DefaultItemExcludes);**/obj/**;**/bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

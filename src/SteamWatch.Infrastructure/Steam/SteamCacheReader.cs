@@ -29,30 +29,33 @@ public sealed class SteamCacheReader
             ? new Dictionary<int, int>()
             : await ReadPlaytimesAsync(resolvedUserId, cancellationToken).ConfigureAwait(false);
 
-        var steamAppsPath = Path.Combine(SteamPath, "steamapps");
-        if (!Directory.Exists(steamAppsPath))
+        var libraries = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { Path.GetFullPath(SteamPath) };
+        var foldersFile = Path.Combine(SteamPath, "steamapps", "libraryfolders.vdf");
+        if (File.Exists(foldersFile))
         {
-            return [];
+            var folders = await File.ReadAllTextAsync(foldersFile, cancellationToken).ConfigureAwait(false);
+            foreach (var library in _parser.ParseLibraryPaths(folders)) libraries.Add(Path.GetFullPath(library));
         }
-
-        var games = new List<SteamGameInfo>();
-        foreach (var manifestPath in Directory.EnumerateFiles(steamAppsPath, "appmanifest_*.acf"))
+        var games = new Dictionary<int, SteamGameInfo>();
+        foreach (var library in libraries)
         {
-            var content = await File.ReadAllTextAsync(manifestPath, cancellationToken).ConfigureAwait(false);
-            var manifest = _parser.ParseAppManifest(content);
-            if (manifest is null)
+            var steamAppsPath = Path.Combine(library, "steamapps");
+            if (!Directory.Exists(steamAppsPath)) continue;
+            foreach (var manifestPath in Directory.EnumerateFiles(steamAppsPath, "appmanifest_*.acf"))
             {
-                continue;
+                cancellationToken.ThrowIfCancellationRequested();
+                var content = await File.ReadAllTextAsync(manifestPath, cancellationToken).ConfigureAwait(false);
+                var manifest = _parser.ParseAppManifest(content);
+                if (manifest is null) continue;
+                var folder = manifest.InstallDirectory ?? manifest.Name;
+                var commonRoot = Path.GetFullPath(Path.Combine(steamAppsPath, "common")) + Path.DirectorySeparatorChar;
+                var installPath = Path.GetFullPath(Path.Combine(commonRoot, folder));
+                if (!installPath.StartsWith(commonRoot, StringComparison.OrdinalIgnoreCase)) continue;
+                games[manifest.AppId] = new SteamGameInfo(manifest.AppId, manifest.Name,
+                    playtimes.GetValueOrDefault(manifest.AppId), GetGameIconPath(manifest.AppId), installPath, playtimes.ContainsKey(manifest.AppId));
             }
-
-            games.Add(new SteamGameInfo(
-                manifest.AppId,
-                manifest.Name,
-                playtimes.GetValueOrDefault(manifest.AppId),
-                GetGameIconPath(manifest.AppId)));
         }
-
-        return games.OrderBy(game => game.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        return games.Values.OrderBy(game => game.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
     public async Task<string?> GetCurrentUserIdAsync(CancellationToken cancellationToken = default)

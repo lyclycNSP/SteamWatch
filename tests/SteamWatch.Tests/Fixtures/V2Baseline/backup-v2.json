@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "ledger": {
+    "schemaVersion": 2,
+    "days": [
+      {
+        "date": "2026-10-11",
+        "measuredTicks": {
+          "730": 900000000
+        },
+        "estimatedMinutes": {
+          "730": 5
+        }
+      }
+    ],
+    "steamBaselines": {
+      "synthetic-account": {
+        "730": 108
+      }
+    },
+    "gameNames": {
+      "730": "Synthetic Game"
+    },
+    "estimatedEntries": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "date": "2026-10-11",
+        "appId": 730,
+        "source": 0,
+        "previousMinutes": 0,
+        "currentMinutes": 8,
+        "recordedAt": "2026-10-11T12:00:00+08:00",
+        "reason": "Synthetic Steam observation",
+        "accountId": "synthetic-account",
+        "steamExpectedMinutes": 100,
+        "steamObservedMinutes": 108
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "date": "2026-10-11",
+        "appId": 730,
+        "source": 2,
+        "previousMinutes": 8,
+        "currentMinutes": 5,
+        "recordedAt": "2026-10-11T12:05:00+08:00",
+        "reason": "Synthetic correction"
+      }
+    ]
+  },
+  "settings": {
+    "closeWindowAction": 0,
+    "startWithWindows": false,
+    "playReminderSounds": false,
+    "forceCloseCountdownSeconds": 60,
+    "firstReminderThresholdPercent": 70,
+    "secondReminderThresholdPercent": 85,
+    "finalReminderThresholdPercent": 95,
+    "requireAuthenticationForSensitiveActions": false,
+    "authenticationCredential": null
+  },
+  "rules": [
+    {
+      "scope": 1,
+      "period": 0,
+      "maxMinutes": 60,
+      "enforcement": 0,
+      "appId": null,
+      "name": "合成全局每日规则"
+    },
+    {
+      "scope": 0,
+      "period": 1,
+      "maxMinutes": 180,
+      "enforcement": 1,
+      "appId": 730,
+      "name": "合成单游戏每周规则"
+    }
+  ],
+  "categoryOverrides": {
+    "730": 2
+  }
+}

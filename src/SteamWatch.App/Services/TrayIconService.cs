@@ -114,7 +114,7 @@ internal sealed class TrayIconService : IDisposable
     {
         var menu = NativeMethods.CreatePopupMenu();
         NativeMethods.AppendMenu(menu, NativeMethods.MfString, OpenCommandId, "打开 SteamWatch");
-        NativeMethods.AppendMenu(menu, NativeMethods.MfString, PauseCommandId, _isPaused() ? "恢复监控" : "暂停监控");
+        NativeMethods.AppendMenu(menu, NativeMethods.MfString, PauseCommandId, _isPaused() ? "恢复限制（继续计时）" : "暂停限制（继续计时）");
         NativeMethods.AppendMenu(menu, NativeMethods.MfString, SettingsCommandId, "设置");
         NativeMethods.AppendMenu(menu, NativeMethods.MfSeparator, 0, string.Empty);
         NativeMethods.AppendMenu(menu, NativeMethods.MfString, ExitCommandId, "退出");

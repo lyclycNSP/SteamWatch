@@ -29,7 +29,9 @@ public sealed class PlaytimeStatRowViewModel
 
     public string AppIdText => $"AppID {AppId}";
 
-    public string MinutesText => $"{Minutes} 分钟";
+    public int EstimatedMinutes { get; set; }
+    public int MeasuredMinutes => Math.Max(0, Minutes - EstimatedMinutes);
+    public string MinutesText => $"{Minutes} 分钟" + (EstimatedMinutes > 0 ? $"（含估算 {EstimatedMinutes} 分钟）" : "");
 
     public BitmapImage? IconSource => string.IsNullOrWhiteSpace(IconPath)
         ? null

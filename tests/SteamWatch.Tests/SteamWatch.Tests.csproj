@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
@@ -12,7 +12,25 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\src\SteamWatch.Installer\DirectoryUpgrade.cs" Link="DirectoryUpgrade.cs" />
+    <Compile Include="..\..\src\SteamWatch.Installer\DirectoryUpgradeTransaction.cs" Link="DirectoryUpgradeTransaction.cs" />
+    <Compile Include="..\..\src\SteamWatch.Installer\InstallationContext.cs" Link="InstallationContext.cs" />
+    <Compile Include="..\..\src\SteamWatch.Installer\PayloadExtractor.cs" Link="PayloadExtractor.cs" />
+    <Compile Include="..\..\tools\SteamWatch.InstallationProbe\BundleFixture.cs" Link="BundleFixture.cs" />
+    <Compile Include="..\..\tools\SteamWatch.InstallationProbe\TransactionFixture.cs" Link="TransactionFixture.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\Presentation\RuntimePresentation.cs" Link="RuntimePresentation.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\Presentation\SettingsEdits.cs" Link="SettingsEdits.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\Presentation\ExitPreparation.cs" Link="ExitPreparation.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\ViewModels\SettingsEditorViewModel.cs" Link="SettingsEditorViewModel.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\ViewModels\StatisticsViewModel.cs" Link="StatisticsViewModel.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\ViewModels\GameLibraryViewModel.cs" Link="GameLibraryViewModel.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\ViewModels\LimitRuleEditorViewModel.cs" Link="LimitRuleEditorViewModel.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\Presentation\RuntimeReadModel.cs" Link="RuntimeReadModel.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\Presentation\UiOperationCoordinator.cs" Link="UiOperationCoordinator.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\Services\BackgroundMonitor.cs" Link="BackgroundMonitor.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\Presentation\PresentationLifetime.cs" Link="PresentationLifetime.cs" />
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+    <None Update="Fixtures\V2Baseline\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

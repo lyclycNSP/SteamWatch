@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "ledger": {
+    "schemaVersion": 1,
+    "days": [
+      {
+        "date": "2026-10-11",
+        "measuredTicks": {
+          "730": 900000000
+        },
+        "estimatedMinutes": {
+          "730": 8
+        }
+      }
+    ],
+    "steamBaselines": {
+      "synthetic-account": {
+        "730": 100
+      }
+    },
+    "gameNames": {
+      "730": "Synthetic Game"
+    }
+  },
+  "settings": {
+    "closeWindowAction": 0,
+    "startWithWindows": false,
+    "playReminderSounds": false,
+    "forceCloseCountdownSeconds": 60,
+    "firstReminderThresholdPercent": 70,
+    "secondReminderThresholdPercent": 85,
+    "finalReminderThresholdPercent": 95,
+    "requireAuthenticationForSensitiveActions": false,
+    "authenticationCredential": null
+  },
+  "rules": [
+    {
+      "scope": 1,
+      "period": 0,
+      "maxMinutes": 60,
+      "enforcement": 0,
+      "appId": null,
+      "name": "合成全局每日规则"
+    },
+    {
+      "scope": 0,
+      "period": 1,
+      "maxMinutes": 180,
+      "enforcement": 1,
+      "appId": 730,
+      "name": "合成单游戏每周规则"
+    }
+  ]
+}

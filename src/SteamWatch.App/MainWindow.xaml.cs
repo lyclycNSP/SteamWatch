@@ -14,7 +14,7 @@ public sealed partial class MainWindow : Window
     private readonly IntPtr _windowHandle;
     private readonly TrayIconService _trayIcon;
     private bool _isExiting;
-    private bool _isMonitoringPaused;
+    private bool _exitRequested;
 
     public MainWindow()
     {
@@ -27,7 +27,7 @@ public sealed partial class MainWindow : Window
         RootFrame.Navigate(typeof(MainPage));
 
         _settingsStore = new AppSettingsStore(
-            new JsonFileStore(Path.Combine(AppContext.BaseDirectory, "data")));
+            new JsonFileStore(App.Service.DataDirectory));
         _windowHandle = WindowNative.GetWindowHandle(this);
         _trayIcon = new TrayIconService(
             "SteamWatch",
@@ -36,7 +36,7 @@ public sealed partial class MainWindow : Window
             () => DispatcherQueue.TryEnqueue(ToggleMonitoringPaused),
             () => DispatcherQueue.TryEnqueue(ShowSettings),
             () => DispatcherQueue.TryEnqueue(ExitFromTray),
-            () => _isMonitoringPaused);
+            () => App.Service.IsPaused);
         AppWindow.Closing += AppWindow_Closing;
         Closed += MainWindow_Closed;
     }
@@ -64,6 +64,50 @@ public sealed partial class MainWindow : Window
         _trayIcon.Dispose();
     }
 
+    public void RestoreWindow() => ShowWindow();
+
+    public Task<bool> PrepareForUpgradeAsync(CancellationToken cancellationToken)
+    {
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!DispatcherQueue.TryEnqueue(async () =>
+        {
+            if (_exitRequested) { completion.TrySetResult(false); return; }
+            _exitRequested = true;
+            var prepared = false;
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                ShowWindow();
+                if (RootFrame.Content is not MainPage page
+                    || !await page.PrepareForExitAsync("退出 SteamWatch", cancellationToken))
+                { completion.TrySetResult(false); return; }
+                prepared = true;
+                cancellationToken.ThrowIfCancellationRequested();
+                completion.TrySetResult(true);
+            }
+            catch (Exception ex)
+            {
+                if (prepared) { CancelUpgradeExit(); prepared = false; }
+                completion.TrySetException(ex);
+            }
+            finally { if (!prepared) _exitRequested = false; }
+        })) completion.TrySetException(new InvalidOperationException("窗口暂时无法处理升级请求。"));
+        return completion.Task;
+    }
+
+    public void CompleteUpgradeExit()
+    {
+        _isExiting = true;
+        _trayIcon.Dispose();
+        App.ExitApplication();
+    }
+
+    public void CancelUpgradeExit()
+    {
+        _exitRequested = false;
+        if (RootFrame.Content is MainPage page) page.ResumeAfterExitFailure();
+    }
+
     private void ShowWindow()
     {
         WindowNativeMethods.ShowWindow(_windowHandle, WindowNativeMethods.SwShow);
@@ -85,12 +129,12 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void ToggleMonitoringPaused()
+    private async void ToggleMonitoringPaused()
     {
-        _isMonitoringPaused = !_isMonitoringPaused;
         if (RootFrame.Content is MainPage page)
         {
-            page.SetMonitoringPaused(_isMonitoringPaused);
+            try { await page.SetMonitoringPausedAsync(!page.IsMonitoringPaused); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex.GetType().Name); ShowWindow(); }
         }
     }
 
@@ -101,25 +145,23 @@ public sealed partial class MainWindow : Window
 
     private async Task RequestExitAsync()
     {
-        ShowWindow();
-        if (!await AuthorizeExitAsync())
+        if (_exitRequested) return;
+        _exitRequested = true;
+        try
         {
-            return;
+            ShowWindow();
+            if (RootFrame.Content is not MainPage page || !await page.PrepareForExitAsync()) return;
+            _isExiting = true;
+            _trayIcon.Dispose();
+            App.ExitApplication();
         }
-
-        _isExiting = true;
-        _trayIcon.Dispose();
-        App.ExitApplication();
-    }
-
-    private async Task<bool> AuthorizeExitAsync()
-    {
-        if (RootFrame.Content is MainPage page)
+        catch (Exception ex)
         {
-            return await page.AuthorizeSensitiveActionAsync("退出 SteamWatch");
+            if (RootFrame.Content is MainPage page)
+                await page.ShowDialogAsync(new ContentDialog { XamlRoot = page.XamlRoot, Title = "退出前保存失败",
+                    Content = $"数据尚未确认保存，应用继续运行。{ex.Message}", CloseButtonText = "知道了" });
         }
-
-        return true;
+        finally { _exitRequested = false; }
     }
 
     private CloseWindowAction GetCloseWindowAction()

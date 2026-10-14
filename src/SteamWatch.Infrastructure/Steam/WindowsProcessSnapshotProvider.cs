@@ -27,7 +27,8 @@ public sealed class WindowsProcessSnapshotProvider : IProcessSnapshotProvider
                     processId,
                     item?.ParentProcessId ?? 0,
                     name,
-                    item?.CommandLine ?? [SafeMainModulePath(process)]));
+                    item?.CommandLine ?? [SafeMainModulePath(process)],
+                    SafeMainModulePath(process), SafeStartTime(process)));
             }
             catch
             {
@@ -79,6 +80,13 @@ public sealed class WindowsProcessSnapshotProvider : IProcessSnapshotProvider
         }
 
         return CommandLineSplitter.Split(commandLine);
+    }
+
+    private static long? SafeStartTime(Process process)
+    {
+        try { return process.StartTime.ToUniversalTime().Ticks; }
+        catch (System.ComponentModel.Win32Exception) { return null; }
+        catch (InvalidOperationException) { return null; }
     }
 
     private static string SafeMainModulePath(Process process)

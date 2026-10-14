@@ -1,0 +1,11 @@
+{
+  "closeWindowAction": 0,
+  "startWithWindows": false,
+  "playReminderSounds": false,
+  "forceCloseCountdownSeconds": 60,
+  "firstReminderThresholdPercent": 70,
+  "secondReminderThresholdPercent": 85,
+  "finalReminderThresholdPercent": 95,
+  "requireAuthenticationForSensitiveActions": false,
+  "authenticationCredential": null
+}

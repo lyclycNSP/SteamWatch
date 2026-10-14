@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Xaml.Media.Imaging;
+using SteamWatch.Core.Steam;
 
 namespace SteamWatch.App;
 
@@ -13,6 +14,20 @@ public sealed class GameRowViewModel : INotifyPropertyChanged
     private string _todayText = string.Empty;
     private string _weekText = string.Empty;
     private string? _iconPath;
+    private string _ruleText = "未设置";
+    public string RuleText { get => _ruleText; set => SetProperty(ref _ruleText, value); }
+    private SteamAppCategory _category;
+    public SteamAppCategory Category
+    {
+        get => _category;
+        set { if (SetProperty(ref _category, value)) OnPropertyChanged(nameof(CategoryText)); }
+    }
+    public string CategoryText => Category switch
+    {
+        SteamAppCategory.Game => "游戏（用户分类）",
+        SteamAppCategory.Tool => "运行库／工具（用户分类）",
+        _ => "分类未知"
+    };
 
     public GameRowViewModel()
     {
@@ -37,6 +52,9 @@ public sealed class GameRowViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public int TodayMinutes { get; set; }
+    public int WeekMinutes { get; set; }
 
     public int AppId
     {
@@ -71,7 +89,7 @@ public sealed class GameRowViewModel : INotifyPropertyChanged
     public string Status
     {
         get => _status;
-        set => SetProperty(ref _status, value);
+        set { if (SetProperty(ref _status, value)) OnPropertyChanged(nameof(SteamPlaytimeText)); }
     }
 
     public string TodayText
@@ -100,7 +118,9 @@ public sealed class GameRowViewModel : INotifyPropertyChanged
 
     public string AppIdText => $"AppID {AppId}";
 
-    public string SteamPlaytimeText => $"Steam 累计 {PlaytimeForeverMinutes} 分钟";
+    public string SteamPlaytimeText => Status == "未在当前库中" ? "Steam 累计：当前库无数据" : $"Steam 累计 {PlaytimeForeverMinutes} 分钟";
+
+    public override string ToString() => $"{Name}，{Status}，今日实测 {TodayMinutes} 分钟，本周实测 {WeekMinutes} 分钟，单游戏限额 {RuleText}";
 
     public BitmapImage? IconSource => string.IsNullOrWhiteSpace(IconPath)
         ? null
@@ -108,6 +128,8 @@ public sealed class GameRowViewModel : INotifyPropertyChanged
 
     public void UpdateFrom(GameRowViewModel source)
     {
+        TodayMinutes = source.TodayMinutes;
+        WeekMinutes = source.WeekMinutes;
         AppId = source.AppId;
         Name = source.Name;
         PlaytimeForeverMinutes = source.PlaytimeForeverMinutes;
@@ -115,6 +137,8 @@ public sealed class GameRowViewModel : INotifyPropertyChanged
         TodayText = source.TodayText;
         WeekText = source.WeekText;
         IconPath = source.IconPath;
+        Category = source.Category;
+        RuleText = source.RuleText;
     }
 
     public GameRowViewModel WithRuntimeState(bool isRunning, int todayMinutes, int weekMinutes)

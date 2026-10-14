@@ -45,7 +45,7 @@ public sealed class SteamGameProcessIdentifier
         var overlayTargetProcessId = GetOverlayTargetProcessId(processes);
         var runningGames = new Dictionary<int, RunningSteamGame>();
 
-        foreach (var process in processes)
+        foreach (var process in processes.OrderByDescending(p => p.ExecutablePath.Count(c => c == Path.DirectorySeparatorChar)).ThenByDescending(p => p.ProcessId))
         {
             if (!ShouldInspect(process, steamProcessIds, overlayTargetProcessId))
             {
@@ -62,7 +62,7 @@ public sealed class SteamGameProcessIdentifier
                 appId.Value,
                 process.ProcessId,
                 process.Name,
-                _knownGames.GetValueOrDefault(appId.Value)?.Name);
+                _knownGames.GetValueOrDefault(appId.Value)?.Name, process.ExecutablePath, process.StartTimeUtcTicks);
         }
 
         return runningGames.Values.OrderBy(game => game.AppId).ToList();
@@ -113,7 +113,7 @@ public sealed class SteamGameProcessIdentifier
             var match = SteamAppIdRegex.Match(argument);
             if (match.Success)
             {
-                return int.Parse(match.Groups["appId"].Value);
+                if (int.TryParse(match.Groups["appId"].Value, out var appId) && _knownGames.ContainsKey(appId)) return appId;
             }
         }
 
@@ -127,88 +127,20 @@ public sealed class SteamGameProcessIdentifier
             return null;
         }
 
-        var normalizedPath = Normalize(executablePath);
-        if (!normalizedPath.Contains($"{Path.DirectorySeparatorChar}steamapps{Path.DirectorySeparatorChar}common{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        var fullPath = Path.GetFullPath(executablePath);
+        foreach (var game in _knownGames.Values)
         {
-            return null;
+            var root = game.InstallDirectory;
+            if (root is null && _steamPath is not null)
+                root = Path.Combine(_steamPath, "steamapps", "common", game.Name);
+            if (root is null) continue;
+            var prefix = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return game.AppId;
         }
-
-        var normalizedExecutable = NormalizeName(Path.GetFileNameWithoutExtension(executablePath));
-        var normalizedDirectory = NormalizeName(Path.GetFileName(Path.GetDirectoryName(executablePath)) ?? string.Empty);
-        var candidates = _knownGames.Values
-            .Select(game => new
-            {
-                Game = game,
-                NormalizedName = NormalizeName(game.Name)
-            })
-            .Where(item => !string.IsNullOrWhiteSpace(item.NormalizedName))
-            .Select(item => new
-            {
-                item.Game,
-                item.NormalizedName,
-                Score = GetPathMatchScore(item.NormalizedName, normalizedExecutable, normalizedDirectory)
-            })
-            .Where(item => item.Score > 0)
-            .OrderByDescending(item => item.Score)
-            .ThenByDescending(item => item.NormalizedName.Length)
-            .ThenBy(item => item.Game.AppId)
-            .ToList();
-
-        if (candidates.Count > 0)
-        {
-            return candidates[0].Game.AppId;
-        }
-
         return null;
     }
 
-    private static int GetPathMatchScore(string normalizedName, string normalizedExecutable, string normalizedDirectory)
-    {
-        if (string.Equals(normalizedExecutable, normalizedName, StringComparison.OrdinalIgnoreCase))
-        {
-            return 100;
-        }
-
-        if (string.Equals(normalizedDirectory, normalizedName, StringComparison.OrdinalIgnoreCase))
-        {
-            return 90;
-        }
-
-        if (normalizedExecutable.Contains(normalizedName, StringComparison.OrdinalIgnoreCase))
-        {
-            return 70;
-        }
-
-        if (normalizedDirectory.Contains(normalizedName, StringComparison.OrdinalIgnoreCase))
-        {
-            return 60;
-        }
-
-        if (normalizedName.Contains(normalizedExecutable, StringComparison.OrdinalIgnoreCase))
-        {
-            return 50;
-        }
-
-        if (normalizedName.Contains(normalizedDirectory, StringComparison.OrdinalIgnoreCase))
-        {
-            return 40;
-        }
-
-        return 0;
-    }
-
-    private bool IsKnownSteamLibraryPath(string executablePath)
-    {
-        if (string.IsNullOrWhiteSpace(_steamPath) || string.IsNullOrWhiteSpace(executablePath))
-        {
-            return false;
-        }
-
-        var normalizedExecutable = Normalize(executablePath);
-        var normalizedSteamPath = Normalize(_steamPath);
-        return normalizedExecutable.StartsWith(normalizedSteamPath, StringComparison.OrdinalIgnoreCase)
-            && normalizedExecutable.Contains($"{Path.DirectorySeparatorChar}steamapps{Path.DirectorySeparatorChar}common{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
-    }
+    private bool IsKnownSteamLibraryPath(string executablePath) => TryMatchKnownGameByPath(executablePath) is not null;
 
     private static int? GetOverlayTargetProcessId(IEnumerable<SteamProcessSnapshot> processes)
     {

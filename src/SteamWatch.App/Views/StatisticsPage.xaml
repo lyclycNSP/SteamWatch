@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="SteamWatch.App.Views.StatisticsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SteamWatch.App"
+    xmlns:controls="using:SteamWatch.App.Controls">
+            <Grid RowSpacing="12">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ToggleButton x:Name="DailyStatisticsTab" Content="每日明细" Style="{StaticResource SectionTabStyle}" IsChecked="True" Click="DailyStatisticsTab_Click" />
+                    <ToggleButton x:Name="WeeklyStatisticsTab" Content="每周汇总" Style="{StaticResource SectionTabStyle}" Click="WeeklyStatisticsTab_Click" />
+                </StackPanel>
+                <Grid x:Name="DailyStatisticsPanel" Grid.Row="1" RowSpacing="12">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <CalendarDatePicker x:Name="DailyStatsDatePicker" Header="选择日期" Width="180" DateFormat="{}{year.full}-{month.integer(2)}-{day.integer(2)}" DateChanged="DailyStatsDatePicker_DateChanged" />
+                        <Button Content="检查／修正估算" VerticalAlignment="Bottom" Click="EstimatedDetailsButton_Click" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Spacing="4"><TextBlock x:Name="DailyStatsTotalText" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" /><TextBlock x:Name="DailyStatsBreakdown" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" /></StackPanel>
+                    <Grid Grid.Row="2">
+                        <Grid Padding="12,8" ColumnSpacing="12" Background="{ThemeResource LayerFillColorDefaultBrush}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="86" /><ColumnDefinition Width="86" /><ColumnDefinition Width="86" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="游戏" /><TextBlock Grid.Column="1" Text="实测 / 分钟" /><TextBlock Grid.Column="2" Text="估算 / 分钟" /><TextBlock Grid.Column="3" Text="合计 / 分钟" />
+                        </Grid>
+                    </Grid>
+                    <ListView x:Name="DailyStatsList" Grid.Row="3" ItemsSource="{x:Bind DailyStatRows}">
+                            <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate><DataTemplate x:DataType="local:PlaytimeStatRowViewModel">
+                                <Grid Padding="0,8" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="86" /><ColumnDefinition Width="86" /><ColumnDefinition Width="86" /></Grid.ColumnDefinitions>
+                                    <StackPanel><TextBlock Text="{x:Bind GameName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind GameName}" /><TextBlock Text="{x:Bind AppIdText}" Style="{StaticResource SecondaryTextStyle}" /></StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{x:Bind MeasuredMinutes}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{x:Bind EstimatedMinutes}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="3" Text="{x:Bind Minutes}" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate></ListView.ItemTemplate>
+                    </ListView>
+                    <TextBlock x:Name="DailyStatsEmpty" Grid.Row="3" Text="这一天暂无游玩记录。" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed" />
+                </Grid>
+                <Grid x:Name="WeeklyStatisticsPanel" Grid.Row="1" Visibility="Collapsed" RowSpacing="12">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <CalendarDatePicker x:Name="WeeklyStatsDatePicker" AutomationProperties.Name="选择周内日期" Width="220" HorizontalAlignment="Left" DateFormat="{}{year.full}-{month.integer(2)}-{day.integer(2)}" DateChanged="WeeklyStatsDatePicker_DateChanged" />
+                    <StackPanel Grid.Row="1" Spacing="4"><TextBlock x:Name="WeeklyStatsTotalText" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" /><TextBlock x:Name="WeeklyStatsBreakdown" Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" /></StackPanel>
+                    <controls:WeeklyTrendView x:Name="WeeklyTrend" Grid.Row="2" ValuesRequested="WeeklyTrend_ValuesRequested" />
+                    <Grid Grid.Row="3">
+                        <Grid Padding="12,8" ColumnSpacing="12" Background="{ThemeResource LayerFillColorDefaultBrush}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="86" /><ColumnDefinition Width="86" /><ColumnDefinition Width="86" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="游戏" /><TextBlock Grid.Column="1" Text="实测 / 分钟" /><TextBlock Grid.Column="2" Text="估算 / 分钟" /><TextBlock Grid.Column="3" Text="合计 / 分钟" />
+                        </Grid>
+                    </Grid>
+                    <ListView x:Name="WeeklyStatsList" Grid.Row="4" ItemsSource="{x:Bind WeeklyStatRows}">
+                            <ListView.ItemContainerStyle><Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate><DataTemplate x:DataType="local:PlaytimeStatRowViewModel">
+                                <Grid Padding="0,8" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="86" /><ColumnDefinition Width="86" /><ColumnDefinition Width="86" /></Grid.ColumnDefinitions>
+                                    <StackPanel><TextBlock Text="{x:Bind GameName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind GameName}" /><TextBlock Text="{x:Bind AppIdText}" Style="{StaticResource SecondaryTextStyle}" /></StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{x:Bind MeasuredMinutes}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{x:Bind EstimatedMinutes}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="3" Text="{x:Bind Minutes}" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate></ListView.ItemTemplate>
+                    </ListView>
+                    <TextBlock x:Name="WeeklyStatsEmpty" Grid.Row="4" Text="这一周暂无游玩记录。" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed" />
+                </Grid>
+            </Grid>
+</UserControl>

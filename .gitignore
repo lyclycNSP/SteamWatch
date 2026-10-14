@@ -10,6 +10,10 @@ logs/
 exports/
 *.user
 *.suo
+*.pfx
+*.p12
+*.key
+*.pem
 
 # Packaging output
 artifacts/
@@ -18,5 +22,10 @@ publish/
 
 # Local planning board files
 PLAN.md
-SPEC.md
 STATUS.md
+
+# Local execution record
+PROGRESS.md
+
+# History of local planning files (preserve their existing local-only policy)
+/docs/history/local/

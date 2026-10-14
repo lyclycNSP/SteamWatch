@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "days": [
+    {
+      "date": "2026-10-11",
+      "measuredTicks": {
+        "730": 900000000
+      },
+      "estimatedMinutes": {
+        "730": 8
+      }
+    }
+  ],
+  "steamBaselines": {
+    "synthetic-account": {
+      "730": 100
+    }
+  },
+  "gameNames": {
+    "730": "Synthetic Game"
+  }
+}

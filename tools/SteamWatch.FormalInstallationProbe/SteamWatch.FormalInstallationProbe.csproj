@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>SteamWatch.InstallationHelper</AssemblyName>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/SteamWatch.Installer/*.cs" Exclude="../../src/SteamWatch.Installer/Program.cs;../../src/SteamWatch.Installer/DirectoryUpgrade.cs" Link="Engine/%(Filename)%(Extension)" />
+    <Compile Include="../../src/SteamWatch.Infrastructure/Runtime/UpgradeExitProtocol.cs" Link="UpgradeExitProtocol.cs" />
+  </ItemGroup>
+</Project>

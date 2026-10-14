@@ -63,9 +63,11 @@ public sealed class PlaytimeRecordBook
         var start = WeekCalculator.GetWeekStart(date);
         var end = WeekCalculator.GetWeekEnd(date);
 
-        return _records
-            .Where(item => item.Key >= start && item.Key <= end)
-            .Sum(item => item.Value.GetValueOrDefault(appId));
+        var minutes = 0;
+        for (var day = start.DayNumber; day <= end.DayNumber; day++)
+            if (_records.TryGetValue(DateOnly.FromDayNumber(day), out var games))
+                minutes = checked(minutes + games.GetValueOrDefault(appId));
+        return minutes;
     }
 
     public int GetTotalMinutes(DateOnly date)
@@ -80,8 +82,10 @@ public sealed class PlaytimeRecordBook
         var start = WeekCalculator.GetWeekStart(date);
         var end = WeekCalculator.GetWeekEnd(date);
 
-        return _records
-            .Where(item => item.Key >= start && item.Key <= end)
-            .Sum(item => item.Value.Values.Sum());
+        var minutes = 0;
+        for (var day = start.DayNumber; day <= end.DayNumber; day++)
+            if (_records.TryGetValue(DateOnly.FromDayNumber(day), out var games))
+                minutes = checked(minutes + games.Values.Sum());
+        return minutes;
     }
 }

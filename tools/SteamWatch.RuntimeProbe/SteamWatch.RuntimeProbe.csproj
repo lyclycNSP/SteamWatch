@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\SteamWatch.App\Services\BackgroundMonitor.cs" Link="Services\BackgroundMonitor.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\Presentation\ExitPreparation.cs" Link="Presentation\ExitPreparation.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\Presentation\RuntimeReadModel.cs" Link="Presentation\RuntimeReadModel.cs" />
+    <Compile Include="..\..\src\SteamWatch.App\Presentation\RuntimePresentation.cs" Link="Presentation\RuntimePresentation.cs" />
+    <ProjectReference Include="..\..\src\SteamWatch.Infrastructure\SteamWatch.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

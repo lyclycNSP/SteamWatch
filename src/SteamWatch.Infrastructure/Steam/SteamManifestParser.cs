@@ -1,67 +1,40 @@
-using System.Text.RegularExpressions;
-
 namespace SteamWatch.Infrastructure.Steam;
 
-public sealed record SteamManifestEntry(int AppId, string Name);
+public sealed record SteamManifestEntry(int AppId, string Name, string? InstallDirectory = null);
 
 public sealed class SteamManifestParser
 {
-    private static readonly Regex AppIdRegex = new("\"appid\"\\s*\"(?<value>\\d+)\"", RegexOptions.Compiled);
-    private static readonly Regex NameRegex = new("\"name\"\\s*\"(?<value>[^\"]+)\"", RegexOptions.Compiled);
-
     public SteamManifestEntry? ParseAppManifest(string content)
     {
-        var appIdMatch = AppIdRegex.Match(content);
-        var nameMatch = NameRegex.Match(content);
-
-        if (!appIdMatch.Success || !nameMatch.Success)
-        {
-            return null;
-        }
-
-        return new SteamManifestEntry(
-            int.Parse(appIdMatch.Groups["value"].Value),
-            nameMatch.Groups["value"].Value);
+        var root = ValveKeyValues.Parse(content);
+        var app = root.Find("AppState") ?? root;
+        return int.TryParse(app.Get("appid"), out var id) && id > 0 && app.Get("name") is { Length: > 0 } name
+            ? new(id, name, app.Get("installdir")) : null;
     }
 
-    public IReadOnlyDictionary<int, int> ParsePlaytimes(string localConfigContent)
+    public IReadOnlyDictionary<int, int> ParsePlaytimes(string content)
     {
-        var result = new Dictionary<int, int>();
-        var appBlocks = Regex.Matches(
-            localConfigContent,
-            "\"(?<appId>\\d+)\"\\s*\\{(?<body>[\\s\\S]*?)\\n\\s*\\}",
-            RegexOptions.Compiled);
-
-        foreach (Match appBlock in appBlocks)
-        {
-            var body = appBlock.Groups["body"].Value;
-            var playtimeMatch = Regex.Match(body, "\"Playtime\"\\s*\"(?<value>\\d+)\"");
-            if (!playtimeMatch.Success)
-            {
-                continue;
-            }
-
-            result[int.Parse(appBlock.Groups["appId"].Value)] = int.Parse(playtimeMatch.Groups["value"].Value);
-        }
-
-        return result;
+        var root = ValveKeyValues.Parse(content);
+        var apps = root.Find("apps") ?? root;
+        return apps.Children.Where(pair => int.TryParse(pair.Key, out var id) && id > 0
+                && int.TryParse(pair.Value.Get("Playtime"), out var minutes) && minutes >= 0)
+            .ToDictionary(pair => int.Parse(pair.Key), pair => int.Parse(pair.Value.Get("Playtime")!));
     }
 
-    public string? ParseMostRecentUserId32(string loginUsersContent)
+    public string? ParseMostRecentUserId32(string content)
     {
-        var matches = Regex.Matches(
-            loginUsersContent,
-            "\"(?<steamId64>\\d{17})\"\\s*\\{(?<body>[\\s\\S]*?)\\n\\s*\\}",
-            RegexOptions.Compiled);
+        var root = ValveKeyValues.Parse(content);
+        var users = root.Find("users") ?? root;
+        var user = users.Children.FirstOrDefault(pair => pair.Value.Get("MostRecent") == "1");
+        return user.Key is null ? null : SteamIdConverter.ToSteamId32(user.Key);
+    }
 
-        foreach (Match match in matches)
-        {
-            if (Regex.IsMatch(match.Groups["body"].Value, "\"MostRecent\"\\s*\"1\""))
-            {
-                return SteamIdConverter.ToSteamId32(match.Groups["steamId64"].Value);
-            }
-        }
-
-        return null;
+    public IReadOnlyList<string> ParseLibraryPaths(string content)
+    {
+        var root = ValveKeyValues.Parse(content);
+        var libraries = root.Find("libraryfolders") ?? root;
+        return libraries.Children.Values.Select(node => node.Get("path"))
+            .Concat(libraries.Values.Where(pair => int.TryParse(pair.Key, out _)).Select(pair => pair.Value))
+            .OfType<string>().Where(Path.IsPathFullyQualified).ToList();
     }
 }

@@ -1,0 +1,41 @@
+name: Windows validation
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      signing_mode:
+        description: 'Signed requires a provisioned Windows certificate store; never falls back'
+        type: choice
+        options: [Unsigned, Signed]
+        default: Unsigned
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet test tests/SteamWatch.Tests/SteamWatch.Tests.csproj -c Release
+      - run: dotnet build src/SteamWatch.App/SteamWatch.App.csproj -c Debug -p:Platform=x64
+      - shell: pwsh
+        env:
+          STEAMWATCH_SIGN_CERT_SHA1: ${{ vars.STEAMWATCH_SIGN_CERT_SHA1 }}
+          STEAMWATCH_TIMESTAMP_URL: ${{ vars.STEAMWATCH_TIMESTAMP_URL }}
+          STEAMWATCH_SIGN_STORE_LOCATION: ${{ vars.STEAMWATCH_SIGN_STORE_LOCATION }}
+        run: |
+          $compiler = ./scripts/prepare-inno-toolchain.ps1
+          $mode = '${{ inputs.signing_mode }}'
+          if (-not $mode) { $mode = 'Unsigned' }
+          ./scripts/build-installer.ps1 -Compiler $compiler -SigningMode $mode
+          ./scripts/verify-delivery.ps1 -Directory dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SteamWatch-win-x64
+          path: |
+            dist/SteamWatch-win-x64.zip
+            dist/SteamWatchSetup-win-x64.exe
+            dist/*.sha256
+            dist/*.manifest.json
+            dist/release-manifest.json

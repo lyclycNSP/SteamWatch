@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "days": [
+    {
+      "date": "2026-10-11",
+      "measuredTicks": {
+        "730": 900000000
+      },
+      "estimatedMinutes": {
+        "730": 5
+      }
+    }
+  ],
+  "steamBaselines": {
+    "synthetic-account": {
+      "730": 108
+    }
+  },
+  "gameNames": {
+    "730": "Synthetic Game"
+  },
+  "estimatedEntries": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "date": "2026-10-11",
+      "appId": 730,
+      "source": 0,
+      "previousMinutes": 0,
+      "currentMinutes": 8,
+      "recordedAt": "2026-10-11T12:00:00+08:00",
+      "reason": "Synthetic Steam observation",
+      "accountId": "synthetic-account",
+      "steamExpectedMinutes": 100,
+      "steamObservedMinutes": 108
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "date": "2026-10-11",
+      "appId": 730,
+      "source": 2,
+      "previousMinutes": 8,
+      "currentMinutes": 5,
+      "recordedAt": "2026-10-11T12:05:00+08:00",
+      "reason": "Synthetic correction"
+    }
+  ]
+}
